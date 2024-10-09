@@ -2,14 +2,17 @@
 package main
 
 import (
+    "context"
     "encoding/json"
     "os"
+	"os/signal"
     "strconv"
     "strings"
     "time"
 	"log/slog"
 
     "github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
     "gorm.io/driver/postgres"
     "gorm.io/gorm"
 )
@@ -80,70 +83,109 @@ func initDB() {
 }
 
 func main() {
-    logger = slog.New(slog.NewTextHandler(os.Stdout))
     loadConfig()
     initDB()
-    bot, err := bot.New(config.Telegram.Token)
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
+	opts := []bot.Option{
+		bot.WithDefaultHandler(defaultHandler),
+	}
+
+    b, err := bot.New(config.Telegram.Token, opts...)
     if err != nil {
-        logger.Fatalf("failed to create bot: %v", err)
+        logger.Error("failed to create bot", "error", err)
+        os.Exit(1)
     }
 
-    bot.Handle("/upload", handleUpload)
-    bot.Handle("/clear", handleClear)
-    bot.Handle("/setpairs", handleSetPairs)
-    bot.Handle("/setfrequency", handleSetFrequency)
+	b.RegisterHandler(bot.HandlerTypeMessageText, "/upload", bot.MatchTypeExact, handleUpload)
+    b.RegisterHandler(bot.HandlerTypeMessageText, "/clear", bot.MatchTypeExact, handleClear)
+    b.RegisterHandler(bot.HandlerTypeMessageText, "/setpairs", bot.MatchTypeExact, handleSetPairs)
+    b.RegisterHandler(bot.HandlerTypeMessageText, "/setfrequency", bot.MatchTypeExact, handleSetFrequency)
 
-    go startPeriodicMessages(bot)
+    go startPeriodicMessages(ctx, b)
 
-    bot.Start()
+    b.Start(ctx)
 }
 
-func handleUpload(c *bot.Context) {
-    pairs := strings.Split(c.Message.Text, "\n")
+func defaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
+	b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID: update.Message.Chat.ID,
+		Text:   "Say /upload, /clear, /setpairs, /setfrequency",
+	})
+}
+
+func handleUpload(ctx context.Context, b *bot.Bot, update *models.Update) {
+    pairs := strings.Split(update.Message.Text, "\n")
     for _, pair := range pairs {
         words := strings.Split(pair, ",")
         if len(words) != 2 {
-            c.Reply("Invalid format. Please use 'word1,word2' format.")
+            b.SendMessage(ctx, &bot.SendMessageParams{
+                ChatID: update.Message.Chat.ID,
+                Text:   "Invalid format. Please use 'word1,word2' format.",
+            })
             return
         }
-        wordPair := WordPair{UserID: c.Message.From.ID, Word1: strings.TrimSpace(words[0]), Word2: strings.TrimSpace(words[1])}
+        wordPair := WordPair{UserID: update.Message.From.ID, Word1: strings.TrimSpace(words[0]), Word2: strings.TrimSpace(words[1])}
         if err := db.Create(&wordPair).Error; err != nil {
-            logger.Error("failed to create word pair", "user_id", c.Message.From.ID, "error", err)
-            c.Reply("Failed to upload word pair.")
+            logger.Error("failed to create word pair", "user_id", update.Message.From.ID, "error", err)
+            b.SendMessage(ctx, &bot.SendMessageParams{
+                ChatID: update.Message.Chat.ID,
+                Text:   "Failed to upload word pair.",
+            })
             return
         }
     }
-    c.Reply("Word pairs uploaded successfully.")
+    b.SendMessage(ctx, &bot.SendMessageParams{
+        ChatID: update.Message.Chat.ID,
+        Text:   "Word pairs uploaded successfully.",
+    })
 }
 
-func handleClear(c *bot.Context) {
-    db.Where("user_id = ?", c.Message.From.ID).Delete(&WordPair{})
-    c.Reply("Your word pair list has been cleared.")
+func handleClear(ctx context.Context, b *bot.Bot, update *models.Update) {
+    db.Where("user_id = ?", update.Message.From.ID).Delete(&WordPair{})
+    b.SendMessage(ctx, &bot.SendMessageParams{
+        ChatID: update.Message.Chat.ID,
+        Text:   "Your word pair list has been cleared.",
+    })
 }
 
-func handleSetPairs(c *bot.Context) {
-    pairsCount, err := strconv.Atoi(c.Message.Text)
+func handleSetPairs(ctx context.Context, b *bot.Bot, update *models.Update) {
+    pairsCount, err := strconv.Atoi(update.Message.Text)
     if err != nil || pairsCount <= 0 {
-        c.Reply("Please provide a valid number of pairs to send.")
+        b.SendMessage(ctx, &bot.SendMessageParams{
+            ChatID: update.Message.Chat.ID,
+            Text:   "Please provide a valid number of pairs to send.",
+        })
         return
     }
-    settings := UserSettings{UserID: c.Message.From.ID, PairsToSend: pairsCount}
-    db.Where("user_id = ?", c.Message.From.ID).Assign(settings).FirstOrCreate(&settings)
-    c.Reply("Number of pairs to send has been set.")
+    settings := UserSettings{UserID: update.Message.From.ID, PairsToSend: pairsCount}
+    db.Where("user_id = ?", update.Message.From.ID).Assign(settings).FirstOrCreate(&settings)
+    b.SendMessage(ctx, &bot.SendMessageParams{
+        ChatID: update.Message.Chat.ID,
+        Text:   "Number of pairs to send has been set.",
+    })
 }
 
-func handleSetFrequency(c *bot.Context) {
-    frequency, err := strconv.Atoi(c.Message.Text)
+func handleSetFrequency(ctx context.Context, b *bot.Bot, update *models.Update) {
+    frequency, err := strconv.Atoi(update.Message.Text)
     if err != nil || frequency <= 0 {
-        c.Reply("Please provide a valid number of reminders per day.")
+        b.SendMessage(ctx, &bot.SendMessageParams{
+            ChatID: update.Message.Chat.ID,
+            Text:   "Please provide a valid number of reminders per day.",
+        })
         return
     }
-    settings := UserSettings{UserID: c.Message.From.ID, RemindersPerDay: frequency}
-    db.Where("user_id = ?", c.Message.From.ID).Assign(settings).FirstOrCreate(&settings)
-    c.Reply("Frequency of reminders has been set.")
+    settings := UserSettings{UserID: update.Message.From.ID, RemindersPerDay: frequency}
+    db.Where("user_id = ?", update.Message.From.ID).Assign(settings).FirstOrCreate(&settings)
+    b.SendMessage(ctx, &bot.SendMessageParams{
+        ChatID: update.Message.Chat.ID,
+        Text:   "Frequency of reminders has been set.",
+    })
 }
 
-func startPeriodicMessages(bot *bot.Bot) {
+func startPeriodicMessages(ctx context.Context, b *bot.Bot) {
     for {
         time.Sleep(24 * time.Hour) // Adjust the duration based on user settings
         users := []UserSettings{}
@@ -158,7 +200,10 @@ func startPeriodicMessages(bot *bot.Bot) {
                 for _, pair := range wordPairs {
                     message += pair.Word1 + " - ||" + pair.Word2 + "||\n" // Using Telegram spoiler formatting
                 }
-                bot.Send(user.UserID, message)
+                b.SendMessage(ctx, &bot.SendMessageParams{
+                    ChatID: user.UserID,
+                    Text:   message,
+                })
             }
         }
     }
