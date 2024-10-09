@@ -1,0 +1,13 @@
+{
+    "database": {
+        "host": "localhost",
+        "user": "youruser",
+        "password": "yourpassword",
+        "dbname": "yourdb",
+        "port": 5432,
+        "sslmode": "disable"
+    },
+    "telegram": {
+        "token": "YOUR_TELEGRAM_BOT_TOKEN"
+    }
+}
