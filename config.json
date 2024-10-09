@@ -1,13 +1,13 @@
 {
     "database": {
-        "host": "localhost",
-        "user": "youruser",
-        "password": "yourpassword",
-        "dbname": "yourdb",
+        "host": "ep-shiny-hill-a2km7bm5.eu-central-1.aws.neon.tech",
+        "user": "reminderdb_owner",
+        "password": "sQSIG1PBmU5L",
+        "dbname": "reminderdb",
         "port": 5432,
-        "sslmode": "disable"
+        "sslmode": "require"
     },
     "telegram": {
-        "token": "YOUR_TELEGRAM_BOT_TOKEN"
+        "token": "8062897546:AAHi49InaZXdFB9w5t1Fxcsh7hNZC3YQN80"
     }
 }
