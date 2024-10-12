@@ -3,9 +3,11 @@ package main
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
@@ -100,7 +102,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	b.RegisterHandler(bot.HandlerTypeMessageText, "/upload", bot.MatchTypeExact, handleUpload)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/clear", bot.MatchTypeExact, handleClear)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/setpairs", bot.MatchTypePrefix, handleSetPairs)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/setfrequency", bot.MatchTypePrefix, handleSetFrequency)
@@ -123,49 +124,86 @@ func defaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 		return
 	}
 
+	// Check if the message contains a document (file)
+	if update.Message.Document == nil {
 	_, err := b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: update.Message.Chat.ID,
-		Text:   "Say /upload, /clear, /setpairs, /setfrequency",
+			Text:   "Say /getpair, /setpairs, /setfrequency, or /clear to use the bot. If you attach a CSV file, I'll upload the word pairs to your account.",
 	})
 	if err != nil {
 		logger.Error("failed to send message in defaultHandler", "error", err)
 	}
-}
-
-func handleUpload(ctx context.Context, b *bot.Bot, update *models.Update) {
-	if update == nil || update.Message == nil || update.Message.From == nil || update.Message.Chat.ID == 0 {
-		logger.Error("invalid update in handleUpload")
 		return
 	}
 
-	lines := strings.Split(update.Message.Text, "\n")
-	if len(lines) < 2 {
+	logger.Info("Uploading file", "file_name", update.Message.Document.FileName, "for UserID", update.Message.From.ID)
+
+	// Check if the file is a CSV
+	if !strings.HasSuffix(update.Message.Document.FileName, ".csv") {
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
-			Text:   "Please provide word pairs in the format: word1,word2 (one pair per line)",
+			Text:   "The uploaded file is not a CSV. Please upload a valid CSV file.",
 		})
 		return
 	}
 
-	for _, line := range lines[1:] { // Skip the first line as it contains the command
-		words := strings.Split(line, ",")
-		if len(words) != 2 {
+	// Download the file
+	file, err := b.GetFile(ctx, &bot.GetFileParams{FileID: update.Message.Document.FileID})
+	if err != nil {
+		logger.Error("failed to get file", "error", err)
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "Failed to download the file. Please try again.",
+		})
+		return
+	}
+
+	// Construct the file URL
+	fileURL := fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", config.Telegram.Token, file.FilePath)
+
+	// Open the file
+	resp, err := http.Get(fileURL)
+	if err != nil {
+		logger.Error("failed to open file", "error", err)
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "Failed to open the file. Please try again.",
+		})
+		return
+	}
+	defer resp.Body.Close()
+
+	// Read the CSV file
+	reader := csv.NewReader(resp.Body)
+	records, err := reader.ReadAll()
+	if err != nil {
+		logger.Error("failed to read CSV file", "error", err)
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "Failed to read the CSV file. Please ensure it is in the correct format.",
+		})
+		return
+	}
+
+	// Process each record
+	for _, record := range records {
+		if len(record) != 2 {
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: update.Message.Chat.ID,
-				Text:   fmt.Sprintf("Invalid format in line: %s. Please use 'word1,word2' format.", line),
+				Text:   fmt.Sprintf("Invalid format in record: %v. Please use 'word1,word2' format.", record),
 			})
 			continue
 		}
 		wordPair := WordPair{
 			UserID: update.Message.From.ID,
-			Word1:  strings.TrimSpace(words[0]),
-			Word2:  strings.TrimSpace(words[1]),
+			Word1:  strings.TrimSpace(record[0]),
+			Word2:  strings.TrimSpace(record[1]),
 		}
 		if err := db.Create(&wordPair).Error; err != nil {
 			logger.Error("failed to create word pair", "user_id", update.Message.From.ID, "error", err)
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: update.Message.Chat.ID,
-				Text:   fmt.Sprintf("Failed to upload word pair: %s", line),
+				Text:   fmt.Sprintf("Failed to upload word pair: %v", record),
 			})
 		}
 	}
