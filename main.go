@@ -105,6 +105,7 @@ func main() {
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/clear", bot.MatchTypeExact, handleClear)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/setpairs", bot.MatchTypePrefix, handleSetPairs)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/setfrequency", bot.MatchTypePrefix, handleSetFrequency)
+	b.RegisterHandler(bot.HandlerTypeMessageText, "/getpair", bot.MatchTypeExact, handleGetPair)
 
 	go startPeriodicMessages(ctx, b)
 
@@ -126,13 +127,13 @@ func defaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 
 	// Check if the message contains a document (file)
 	if update.Message.Document == nil {
-	_, err := b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID: update.Message.Chat.ID,
+		_, err := b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
 			Text:   "Say /getpair, /setpairs, /setfrequency, or /clear to use the bot. If you attach a CSV file, I'll upload the word pairs to your account.",
-	})
-	if err != nil {
-		logger.Error("failed to send message in defaultHandler", "error", err)
-	}
+		})
+		if err != nil {
+			logger.Error("failed to send message in defaultHandler", "error", err)
+		}
 		return
 	}
 
@@ -318,6 +319,41 @@ func startPeriodicMessages(ctx context.Context, b *bot.Bot) {
 		case <-ticker.C:
 			sendReminders(ctx, b)
 		}
+	}
+}
+
+func handleGetPair(ctx context.Context, b *bot.Bot, update *models.Update) {
+	if update == nil || update.Message == nil || update.Message.From == nil || update.Message.Chat.ID == 0 {
+		logger.Error("invalid update in handleGetPair")
+		return
+	}
+
+	var wordPair WordPair
+	if err := db.Where("user_id = ?", update.Message.From.ID).Order("RANDOM()").Limit(1).Find(&wordPair).Error; err != nil {
+		logger.Error("failed to fetch random word pair for user", "user_id", update.Message.From.ID, "error", err)
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "Failed to retrieve a word pair. Please try again later.",
+		})
+		return
+	}
+
+	if (wordPair == WordPair{}) {
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "You have no word pairs saved. Please upload some using the /upload command.",
+		})
+		return
+	}
+
+	message := fmt.Sprintf("%s - ||%s||", wordPair.Word1, wordPair.Word2) // Using Telegram spoiler formatting
+
+	_, err := b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID: update.Message.Chat.ID,
+		Text:   message,
+	})
+	if err != nil {
+		logger.Error("failed to send random word pair message", "user_id", update.Message.From.ID, "error", err)
 	}
 }
 
