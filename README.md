@@ -38,7 +38,7 @@ This is a Telegram bot built using Go that allows users to upload word pairs and
            "user": "your-database-user",
            "password": "your-database-password",
            "dbname": "your-database-name",
-           "port": your-database-port,
+           "port": "your-database-port",
            "sslmode": "require"
        },
        "telegram": {
@@ -54,8 +54,9 @@ This is a Telegram bot built using Go that allows users to upload word pairs and
 
 ## Usage
 
+You can send a CSV file with word pairs to the bot to upload them. Please refer to the example file `example.csv` for the correct format.
+
 - **Commands:**
-  - `/upload`: Upload word pairs. Format: `word1,word2` (one pair per line).
   - `/clear`: Clear all uploaded word pairs.
   - `/setpairs <number>`: Set the number of pairs to send in reminders.
   - `/setfrequency <number>`: Set the frequency of reminders per day.
