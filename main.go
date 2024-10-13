@@ -137,7 +137,7 @@ func defaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 		return
 	}
 
-	logger.Info("Uploading file", "file_name", update.Message.Document.FileName, "for UserID", update.Message.From.ID)
+	logger.Info("Uploading file", "file_name", update.Message.Document.FileName, "UserID", update.Message.From.ID)
 
 	// Check if the file is a CSV
 	if !strings.HasSuffix(update.Message.Document.FileName, ".csv") {
@@ -346,11 +346,12 @@ func handleGetPair(ctx context.Context, b *bot.Bot, update *models.Update) {
 		return
 	}
 
-	message := fmt.Sprintf("%s - ||%s||", wordPair.Word1, wordPair.Word2) // Using Telegram spoiler formatting
+	message := fmt.Sprintf("%s  ||%s||", bot.EscapeMarkdown(wordPair.Word1), bot.EscapeMarkdown(wordPair.Word2)) // Using Telegram spoiler formatting
 
 	_, err := b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID: update.Message.Chat.ID,
-		Text:   message,
+		ChatID:    update.Message.Chat.ID,
+		Text:      message,
+		ParseMode: models.ParseModeMarkdown,
 	})
 	if err != nil {
 		logger.Error("failed to send random word pair message", "user_id", update.Message.From.ID, "error", err)
@@ -374,11 +375,12 @@ func sendReminders(ctx context.Context, b *bot.Bot) {
 		if len(wordPairs) > 0 {
 			message := "Here are your word pairs for today:\n\n"
 			for _, pair := range wordPairs {
-				message += fmt.Sprintf("%s - ||%s||\n", pair.Word1, pair.Word2) // Using Telegram spoiler formatting
+				message += fmt.Sprintf("%s - ||%s||\n", bot.EscapeMarkdown(pair.Word1), bot.EscapeMarkdown(pair.Word2)) // Using Telegram spoiler formatting
 			}
 			_, err := b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID: user.UserID,
-				Text:   message,
+				ChatID:    user.UserID,
+				Text:      message,
+				ParseMode: models.ParseModeMarkdown,
 			})
 			if err != nil {
 				logger.Error("failed to send reminder message", "user_id", user.UserID, "error", err)
