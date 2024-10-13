@@ -23,20 +23,14 @@ func StartPeriodicMessages(ctx context.Context, b *bot.Bot) {
 		user   db.UserSettings
 	}
 
+	// Initialize tickers for existing users
 	for _, user := range users {
-		var ticker *time.Ticker
-		if user.RemindersPerDay > 24 {
-			// Calculate interval in minutes for reminders greater than 24
-			interval := time.Duration(24*60/user.RemindersPerDay) * time.Minute
-			ticker = time.NewTicker(interval) // Set ticker based on calculated interval
-		} else {
-			ticker = time.NewTicker(time.Duration(24 * int(time.Hour) / user.RemindersPerDay)) // Calculate based on RemindersPerDay
-		}
-		tickers = append(tickers, struct {
-			ticker *time.Ticker
-			user   db.UserSettings
-		}{ticker: ticker, user: user}) // Store the ticker and user settings
+		tickers = append(tickers, createUserTicker(user)) // Create ticker for each user
 	}
+
+	// Ticker for checking new users every 10 minutes
+	newUserTicker := time.NewTicker(10 * time.Minute)
+	defer newUserTicker.Stop()
 
 	for {
 		select {
@@ -45,6 +39,8 @@ func StartPeriodicMessages(ctx context.Context, b *bot.Bot) {
 				t.ticker.Stop() // Stop all tickers when context is done
 			}
 			return
+		case <-newUserTicker.C:
+			checkAndStartRemindersForNewUsers(ctx, b, tickers) // Check for new users
 		default:
 			for _, t := range tickers {
 				select {
@@ -55,6 +51,45 @@ func StartPeriodicMessages(ctx context.Context, b *bot.Bot) {
 				}
 			}
 		}
+	}
+}
+
+// Helper function to create a ticker for a user
+func createUserTicker(user db.UserSettings) struct {
+	ticker *time.Ticker
+	user   db.UserSettings
+} {
+	var ticker *time.Ticker
+	if user.RemindersPerDay > 24 {
+		interval := time.Duration(24*60/user.RemindersPerDay) * time.Minute
+		ticker = time.NewTicker(interval)
+	} else {
+		ticker = time.NewTicker(time.Duration(24 * int(time.Hour) / user.RemindersPerDay))
+	}
+	return struct {
+		ticker *time.Ticker
+		user   db.UserSettings
+	}{ticker: ticker, user: user}
+}
+
+// Function to check for new users and start reminders for them
+func checkAndStartRemindersForNewUsers(ctx context.Context, b *bot.Bot, tickers []struct {
+	ticker *time.Ticker
+	user   db.UserSettings
+}) {
+	var existingUserIDs []int64
+	for _, t := range tickers {
+		existingUserIDs = append(existingUserIDs, t.user.UserID) // Collect existing user IDs
+	}
+
+	var newUsers []db.UserSettings
+	if err := db.DB.Where("user_id NOT IN ?", existingUserIDs).Find(&newUsers).Error; err != nil {
+		logger.Error("failed to fetch new users for reminders", "error", err)
+		return
+	}
+
+	for _, newUser := range newUsers {
+		tickers = append(tickers, createUserTicker(newUser)) // Create ticker for new user
 	}
 }
 
