@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -245,51 +244,5 @@ func HandleGetPair(ctx context.Context, b *bot.Bot, update *models.Update) {
 	})
 	if err != nil {
 		logger.Error("failed to send random word pair message", "user_id", update.Message.From.ID, "error", err)
-	}
-}
-
-func StartPeriodicMessages(ctx context.Context, b *bot.Bot) {
-	ticker := time.NewTicker(1 * time.Hour)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			sendReminders(ctx, b)
-		}
-	}
-
-}
-
-func sendReminders(ctx context.Context, b *bot.Bot) {
-	var users []db.UserSettings
-	if err := db.DB.Find(&users).Error; err != nil {
-		logger.Error("failed to fetch users for reminders", "error", err)
-		return
-	}
-
-	for _, user := range users {
-		var wordPairs []db.WordPair
-		if err := db.DB.Where("user_id = ?", user.UserID).Order("RANDOM()").Limit(user.PairsToSend).Find(&wordPairs).Error; err != nil {
-			logger.Error("failed to fetch word pairs for user", "user_id", user.UserID, "error", err)
-			continue
-		}
-
-		if len(wordPairs) > 0 {
-			message := "Here are your word pairs for today:\n\n"
-			for _, pair := range wordPairs {
-				message += fmt.Sprintf("%s - ||%s||\n", bot.EscapeMarkdown(pair.Word1), bot.EscapeMarkdown(pair.Word2)) // Using Telegram spoiler formatting
-			}
-			_, err := b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID:    user.UserID,
-				Text:      message,
-				ParseMode: models.ParseModeMarkdown,
-			})
-			if err != nil {
-				logger.Error("failed to send reminder message", "user_id", user.UserID, "error", err)
-			}
-		}
 	}
 }
