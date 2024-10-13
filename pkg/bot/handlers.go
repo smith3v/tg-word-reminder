@@ -80,6 +80,7 @@ func DefaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 
 	// Read the CSV file
 	reader := csv.NewReader(resp.Body)
+	reader.Comma = '\t' // Set the delimiter to tab
 	records, err := reader.ReadAll()
 	if err != nil {
 		logger.Error("failed to read CSV file", "error", err)
@@ -95,7 +96,7 @@ func DefaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 		if len(record) != 2 {
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: update.Message.Chat.ID,
-				Text:   fmt.Sprintf("Invalid format in record: %v. Please use 'word1,word2' format.", record),
+				Text:   fmt.Sprintf("Invalid format in record: %v. Please use 'word1\tword2' format.", record),
 			})
 			continue
 		}
