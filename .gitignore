@@ -1,2 +1,3 @@
 config.json
-tg-word-reminder
+/tg-word-reminder
+.DS_Store
