@@ -49,7 +49,8 @@ This is a Telegram bot built using Go that allows users to upload word pairs and
 
 4. **Run the bot:**
    ```bash
-   go run main.go
+   go build ./cmd/tg-word-reminder
+   ./tg-word-reminder
    ```
 
 ## Usage
@@ -57,6 +58,7 @@ This is a Telegram bot built using Go that allows users to upload word pairs and
 You can send a CSV file with word pairs to the bot to upload them. Please refer to the example file `example.csv` for the correct format.
 
 - **Commands:**
+  - `/getpair`: Get a random word pair.
   - `/clear`: Clear all uploaded word pairs.
   - `/setpairs <number>`: Set the number of pairs to send in reminders.
   - `/setfrequency <number>`: Set the frequency of reminders per day.
