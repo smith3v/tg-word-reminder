@@ -1,4 +1,4 @@
-module telegram-bot
+module github.com/smith3v/tg-word-reminder
 
 go 1.23.2
 
@@ -18,4 +18,11 @@ require (
 	golang.org/x/crypto v0.17.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
+)
+
+replace (
+	github.com/smith3v/tg-word-reminder/pkg/bot => ./pkg/bot
+	github.com/smith3v/tg-word-reminder/pkg/config => ./pkg/config
+	github.com/smith3v/tg-word-reminder/pkg/db => ./pkg/db
+	github.com/smith3v/tg-word-reminder/pkg/logger => ./pkg/logger
 )

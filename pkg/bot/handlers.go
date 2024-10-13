@@ -1,119 +1,23 @@
-// main.go
-package main
+// pkg/bot/handlers.go
+package bot
 
 import (
 	"context"
 	"encoding/csv"
-	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/http"
-	"os"
-	"os/signal"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
+	"github.com/smith3v/tg-word-reminder/pkg/config"
+	"github.com/smith3v/tg-word-reminder/pkg/db"
+	"github.com/smith3v/tg-word-reminder/pkg/logger"
 )
 
-type Config struct {
-	Database struct {
-		Host     string `json:"host"`
-		User     string `json:"user"`
-		Password string `json:"password"`
-		DBName   string `json:"dbname"`
-		Port     int    `json:"port"`
-		SSLMode  string `json:"sslmode"`
-	} `json:"database"`
-	Telegram struct {
-		Token string `json:"token"`
-	} `json:"telegram"`
-}
-
-type WordPair struct {
-	ID     uint   `gorm:"primaryKey"`
-	UserID int64  `gorm:"index"` // To keep pairs separate for each user
-	Word1  string `gorm:"not null"`
-	Word2  string `gorm:"not null"`
-}
-
-type UserSettings struct {
-	ID              uint  `gorm:"primaryKey"`
-	UserID          int64 `gorm:"index"`
-	PairsToSend     int   `gorm:"default:1"` // Default to sending 1 pair
-	RemindersPerDay int   `gorm:"default:1"` // Default to 1 reminder per day
-}
-
-var db *gorm.DB
-var logger = slog.Default()
-var config Config
-
-func loadConfig() {
-	file, err := os.Open("config.json")
-	if err != nil {
-		logger.Error("failed to open config file", "error", err)
-		os.Exit(1)
-	}
-	defer file.Close()
-
-	decoder := json.NewDecoder(file)
-	if err := decoder.Decode(&config); err != nil {
-		logger.Error("failed to decode config file", "error", err)
-		os.Exit(1)
-	}
-}
-
-func initDB() {
-	var err error
-	dsn := "host=" + config.Database.Host +
-		" user=" + config.Database.User +
-		" password=" + config.Database.Password +
-		" dbname=" + config.Database.DBName +
-		" port=" + strconv.Itoa(config.Database.Port) +
-		" sslmode=" + config.Database.SSLMode
-	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		logger.Error("failed to connect to database", "error", err)
-		os.Exit(1)
-	}
-	if err := db.AutoMigrate(&WordPair{}, &UserSettings{}); err != nil {
-		logger.Error("failed to auto-migrate database", "error", err)
-	}
-}
-
-func main() {
-	loadConfig()
-	initDB()
-
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer cancel()
-
-	opts := []bot.Option{
-		bot.WithDefaultHandler(defaultHandler),
-	}
-
-	b, err := bot.New(config.Telegram.Token, opts...)
-	if err != nil {
-		logger.Error("failed to create bot", "error", err)
-		os.Exit(1)
-	}
-
-	b.RegisterHandler(bot.HandlerTypeMessageText, "/clear", bot.MatchTypeExact, handleClear)
-	b.RegisterHandler(bot.HandlerTypeMessageText, "/setpairs", bot.MatchTypePrefix, handleSetPairs)
-	b.RegisterHandler(bot.HandlerTypeMessageText, "/setfrequency", bot.MatchTypePrefix, handleSetFrequency)
-	b.RegisterHandler(bot.HandlerTypeMessageText, "/getpair", bot.MatchTypeExact, handleGetPair)
-
-	go startPeriodicMessages(ctx, b)
-
-	logger.Info("Starting bot...")
-	b.Start(ctx)
-}
-
-func defaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
+func DefaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	if update == nil || update.Message == nil {
 		logger.Error("received invalid update in defaultHandler")
 		return
@@ -160,7 +64,7 @@ func defaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	}
 
 	// Construct the file URL
-	fileURL := fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", config.Telegram.Token, file.FilePath)
+	fileURL := fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", config.AppConfig.Telegram.Token, file.FilePath)
 
 	// Open the file
 	resp, err := http.Get(fileURL)
@@ -195,12 +99,12 @@ func defaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 			})
 			continue
 		}
-		wordPair := WordPair{
+		wordPair := db.WordPair{
 			UserID: update.Message.From.ID,
 			Word1:  strings.TrimSpace(record[0]),
 			Word2:  strings.TrimSpace(record[1]),
 		}
-		if err := db.Create(&wordPair).Error; err != nil {
+		if err := db.DB.Create(&wordPair).Error; err != nil {
 			logger.Error("failed to create word pair", "user_id", update.Message.From.ID, "error", err)
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: update.Message.Chat.ID,
@@ -215,20 +119,20 @@ func defaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	})
 }
 
-func handleClear(ctx context.Context, b *bot.Bot, update *models.Update) {
+func HandleClear(ctx context.Context, b *bot.Bot, update *models.Update) {
 	if update == nil || update.Message == nil || update.Message.From == nil || update.Message.Chat.ID == 0 {
 		logger.Error("invalid update in handleClear")
 		return
 	}
 
-	db.Where("user_id = ?", update.Message.From.ID).Delete(&WordPair{})
+	db.DB.Where("user_id = ?", update.Message.From.ID).Delete(&db.WordPair{})
 	b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: update.Message.Chat.ID,
 		Text:   "Your word pair list has been cleared.",
 	})
 }
 
-func handleSetPairs(ctx context.Context, b *bot.Bot, update *models.Update) {
+func HandleSetPairs(ctx context.Context, b *bot.Bot, update *models.Update) {
 	if update == nil || update.Message == nil || update.Message.From == nil || update.Message.Chat.ID == 0 {
 		logger.Error("invalid update in handleSetPairs")
 		return
@@ -252,8 +156,8 @@ func handleSetPairs(ctx context.Context, b *bot.Bot, update *models.Update) {
 		return
 	}
 
-	settings := UserSettings{UserID: update.Message.From.ID, PairsToSend: pairsCount}
-	if err := db.Where("user_id = ?", update.Message.From.ID).Assign(settings).FirstOrCreate(&settings).Error; err != nil {
+	settings := db.UserSettings{UserID: update.Message.From.ID, PairsToSend: pairsCount}
+	if err := db.DB.Where("user_id = ?", update.Message.From.ID).Assign(settings).FirstOrCreate(&settings).Error; err != nil {
 		logger.Error("failed to update user settings", "error", err)
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
@@ -268,7 +172,7 @@ func handleSetPairs(ctx context.Context, b *bot.Bot, update *models.Update) {
 	})
 }
 
-func handleSetFrequency(ctx context.Context, b *bot.Bot, update *models.Update) {
+func HandleSetFrequency(ctx context.Context, b *bot.Bot, update *models.Update) {
 	if update == nil || update.Message == nil || update.Message.From == nil || update.Message.Chat.ID == 0 {
 		logger.Error("invalid update in handleSetFrequency")
 		return
@@ -292,8 +196,8 @@ func handleSetFrequency(ctx context.Context, b *bot.Bot, update *models.Update) 
 		return
 	}
 
-	settings := UserSettings{UserID: update.Message.From.ID, RemindersPerDay: frequency}
-	if err := db.Where("user_id = ?", update.Message.From.ID).Assign(settings).FirstOrCreate(&settings).Error; err != nil {
+	settings := db.UserSettings{UserID: update.Message.From.ID, RemindersPerDay: frequency}
+	if err := db.DB.Where("user_id = ?", update.Message.From.ID).Assign(settings).FirstOrCreate(&settings).Error; err != nil {
 		logger.Error("failed to update user settings", "error", err)
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
@@ -308,28 +212,14 @@ func handleSetFrequency(ctx context.Context, b *bot.Bot, update *models.Update) 
 	})
 }
 
-func startPeriodicMessages(ctx context.Context, b *bot.Bot) {
-	ticker := time.NewTicker(1 * time.Hour)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			sendReminders(ctx, b)
-		}
-	}
-}
-
-func handleGetPair(ctx context.Context, b *bot.Bot, update *models.Update) {
+func HandleGetPair(ctx context.Context, b *bot.Bot, update *models.Update) {
 	if update == nil || update.Message == nil || update.Message.From == nil || update.Message.Chat.ID == 0 {
 		logger.Error("invalid update in handleGetPair")
 		return
 	}
 
-	var wordPair WordPair
-	if err := db.Where("user_id = ?", update.Message.From.ID).Order("RANDOM()").Limit(1).Find(&wordPair).Error; err != nil {
+	var wordPair db.WordPair
+	if err := db.DB.Where("user_id = ?", update.Message.From.ID).Order("RANDOM()").Limit(1).Find(&wordPair).Error; err != nil {
 		logger.Error("failed to fetch random word pair for user", "user_id", update.Message.From.ID, "error", err)
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
@@ -338,10 +228,10 @@ func handleGetPair(ctx context.Context, b *bot.Bot, update *models.Update) {
 		return
 	}
 
-	if (wordPair == WordPair{}) {
+	if (wordPair == db.WordPair{}) {
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
-			Text:   "You have no word pairs saved. Please upload some using the /upload command.",
+			Text:   "You have no word pairs saved. Please upload some word pairs first.",
 		})
 		return
 	}
@@ -358,16 +248,31 @@ func handleGetPair(ctx context.Context, b *bot.Bot, update *models.Update) {
 	}
 }
 
+func StartPeriodicMessages(ctx context.Context, b *bot.Bot) {
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			sendReminders(ctx, b)
+		}
+	}
+
+}
+
 func sendReminders(ctx context.Context, b *bot.Bot) {
-	var users []UserSettings
-	if err := db.Find(&users).Error; err != nil {
+	var users []db.UserSettings
+	if err := db.DB.Find(&users).Error; err != nil {
 		logger.Error("failed to fetch users for reminders", "error", err)
 		return
 	}
 
 	for _, user := range users {
-		var wordPairs []WordPair
-		if err := db.Where("user_id = ?", user.UserID).Order("RANDOM()").Limit(user.PairsToSend).Find(&wordPairs).Error; err != nil {
+		var wordPairs []db.WordPair
+		if err := db.DB.Where("user_id = ?", user.UserID).Order("RANDOM()").Limit(user.PairsToSend).Find(&wordPairs).Error; err != nil {
 			logger.Error("failed to fetch word pairs for user", "user_id", user.UserID, "error", err)
 			continue
 		}
