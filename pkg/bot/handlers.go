@@ -182,7 +182,7 @@ func HandleSetNumOfPairs(ctx context.Context, b *bot.Bot, update *models.Update)
 	if len(parts) != 2 {
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
-			Text:   "Please use the format: /setnum <number>\n\nTo set the number of pairs to send per day.",
+			Text:   "Please use the format: /setnum <number>\n\nTo set the number of pairs in each reminder.",
 		})
 		return
 	}
@@ -191,7 +191,7 @@ func HandleSetNumOfPairs(ctx context.Context, b *bot.Bot, update *models.Update)
 	if err != nil || pairsCount <= 0 {
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
-			Text:   "Please provide a valid number of pairs to send.",
+			Text:   "Please provide a valid number of pairs in each reminder.",
 		})
 		return
 	}
@@ -208,7 +208,7 @@ func HandleSetNumOfPairs(ctx context.Context, b *bot.Bot, update *models.Update)
 
 	b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: update.Message.Chat.ID,
-		Text:   fmt.Sprintf("Number of pairs to send has been set to %d.", pairsCount),
+		Text:   fmt.Sprintf("Number of pairs in each reminder has been set to %d.", pairsCount),
 	})
 }
 
