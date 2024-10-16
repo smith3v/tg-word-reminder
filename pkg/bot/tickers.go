@@ -40,7 +40,7 @@ func StartPeriodicMessages(ctx context.Context, b *bot.Bot) {
 			}
 			return
 		case <-settingsUpdateTicker.C:
-			updateUserTickers(ctx, b, &tickers) // Check for user settings updates and new users
+			updateUserTickers(&tickers) // Check for user settings updates and new users
 		default:
 			time.Sleep(1000 * time.Millisecond) // Adjust the duration as needed
 			for _, t := range tickers {
@@ -74,7 +74,7 @@ func createUserTicker(user db.UserSettings) struct {
 }
 
 // Function to update user tickers based on settings changes and check for new users
-func updateUserTickers(ctx context.Context, b *bot.Bot, tickers *[]struct {
+func updateUserTickers(tickers *[]struct {
 	ticker *time.Ticker
 	user   db.UserSettings
 }) {
@@ -91,12 +91,14 @@ func updateUserTickers(ctx context.Context, b *bot.Bot, tickers *[]struct {
 
 	for _, user := range users {
 		if _, exists := existingUserIDs[user.UserID]; !exists {
+			logger.Debug("new user detected", "user_id", user.UserID)
 			*tickers = append(*tickers, createUserTicker(user)) // Create ticker for new user
 		} else {
 			// Check if the settings have changed
 			for i, t := range *tickers {
 				if t.user.UserID == user.UserID {
-					if t.user.RemindersPerDay != user.RemindersPerDay {
+					if t.user.RemindersPerDay != user.RemindersPerDay || t.user.PairsToSend != user.PairsToSend {
+						logger.Debug("user settings updated", "user_id", user.UserID, "old_settings", t.user, "new_settings", user)
 						t.ticker.Stop()                        // Stop the old ticker
 						(*tickers)[i] = createUserTicker(user) // Recreate the ticker with updated settings
 					}
