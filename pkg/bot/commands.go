@@ -28,9 +28,9 @@ func StartPeriodicMessages(ctx context.Context, b *bot.Bot) {
 		tickers = append(tickers, createUserTicker(user)) // Create ticker for each user
 	}
 
-	// Ticker for checking new users every 10 minutes
-	newUserTicker := time.NewTicker(10 * time.Minute)
-	defer newUserTicker.Stop()
+	// Ticker for checking user settings and new users every 5 minutes
+	settingsUpdateTicker := time.NewTicker(5 * time.Minute)
+	defer settingsUpdateTicker.Stop()
 
 	for {
 		select {
@@ -39,9 +39,10 @@ func StartPeriodicMessages(ctx context.Context, b *bot.Bot) {
 				t.ticker.Stop() // Stop all tickers when context is done
 			}
 			return
-		case <-newUserTicker.C:
-			checkAndStartRemindersForNewUsers(ctx, b, tickers) // Check for new users
+		case <-settingsUpdateTicker.C:
+			updateUserTickers(ctx, b, &tickers) // Check for user settings updates and new users
 		default:
+			time.Sleep(1000 * time.Millisecond) // Adjust the duration as needed
 			for _, t := range tickers {
 				select {
 				case <-t.ticker.C:
@@ -72,24 +73,37 @@ func createUserTicker(user db.UserSettings) struct {
 	}{ticker: ticker, user: user}
 }
 
-// Function to check for new users and start reminders for them
-func checkAndStartRemindersForNewUsers(ctx context.Context, b *bot.Bot, tickers []struct {
+// Function to update user tickers based on settings changes and check for new users
+func updateUserTickers(ctx context.Context, b *bot.Bot, tickers *[]struct {
 	ticker *time.Ticker
 	user   db.UserSettings
 }) {
-	var existingUserIDs []int64
-	for _, t := range tickers {
-		existingUserIDs = append(existingUserIDs, t.user.UserID) // Collect existing user IDs
-	}
-
-	var newUsers []db.UserSettings
-	if err := db.DB.Where("user_id NOT IN ?", existingUserIDs).Find(&newUsers).Error; err != nil {
-		logger.Error("failed to fetch new users for reminders", "error", err)
+	var users []db.UserSettings
+	if err := db.DB.Find(&users).Error; err != nil {
+		logger.Error("failed to fetch users for settings update", "error", err)
 		return
 	}
 
-	for _, newUser := range newUsers {
-		tickers = append(tickers, createUserTicker(newUser)) // Create ticker for new user
+	existingUserIDs := make(map[int64]struct{})
+	for _, t := range *tickers {
+		existingUserIDs[t.user.UserID] = struct{}{} // Track existing user IDs
+	}
+
+	for _, user := range users {
+		if _, exists := existingUserIDs[user.UserID]; !exists {
+			*tickers = append(*tickers, createUserTicker(user)) // Create ticker for new user
+		} else {
+			// Check if the settings have changed
+			for i, t := range *tickers {
+				if t.user.UserID == user.UserID {
+					if t.user.RemindersPerDay != user.RemindersPerDay {
+						t.ticker.Stop()                        // Stop the old ticker
+						(*tickers)[i] = createUserTicker(user) // Recreate the ticker with updated settings
+					}
+					break
+				}
+			}
+		}
 	}
 }
 
