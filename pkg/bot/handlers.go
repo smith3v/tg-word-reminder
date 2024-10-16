@@ -33,7 +33,7 @@ func DefaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	if update.Message.Document == nil {
 		_, err := b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
-			Text:   "Say /getpair, /setpairs, /setfrequency, or /clear to use the bot. If you attach a CSV file, I'll upload the word pairs to your account.",
+			Text:   "Say /getpair, /setnum, /setfreq, or /clear to use the bot. If you attach a CSV file, I'll upload the word pairs to your account.",
 		})
 		if err != nil {
 			logger.Error("failed to send message in defaultHandler", "error", err)
@@ -155,7 +155,7 @@ func HandleStart(ctx context.Context, b *bot.Bot, update *models.Update) {
 
 	b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: update.Message.Chat.ID,
-		Text:   "Welcome! You uploaded your word pairs by sending a CSV file here. The bot will send you a random pairs every day. You can set the number of pairs and frequency of reminders in /setpairs and /setfrequency commands.",
+		Text:   "Welcome! You uploaded your word pairs by sending a CSV file here. The bot will send you a random pairs every day. You can set the number of pairs and frequency of reminders in /setnum and /setfreq commands.",
 	})
 }
 
@@ -172,7 +172,7 @@ func HandleClear(ctx context.Context, b *bot.Bot, update *models.Update) {
 	})
 }
 
-func HandleSetPairs(ctx context.Context, b *bot.Bot, update *models.Update) {
+func HandleSetNumOfPairs(ctx context.Context, b *bot.Bot, update *models.Update) {
 	if update == nil || update.Message == nil || update.Message.From == nil || update.Message.Chat.ID == 0 {
 		logger.Error("invalid update in handleSetPairs")
 		return
@@ -182,7 +182,7 @@ func HandleSetPairs(ctx context.Context, b *bot.Bot, update *models.Update) {
 	if len(parts) != 2 {
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
-			Text:   "Please use the format: /setpairs <number>",
+			Text:   "Please use the format: /setnum <number>\n\nTo set the number of pairs to send per day.",
 		})
 		return
 	}
@@ -222,7 +222,7 @@ func HandleSetFrequency(ctx context.Context, b *bot.Bot, update *models.Update) 
 	if len(parts) != 2 {
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
-			Text:   "Please use the format: /setfrequency <number>",
+			Text:   "Please use the format: /setfreq <number>\n\nTo set the frequency of reminders per day.",
 		})
 		return
 	}
