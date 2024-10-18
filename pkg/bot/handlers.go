@@ -155,7 +155,7 @@ func HandleStart(ctx context.Context, b *bot.Bot, update *models.Update) {
 
 	b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: update.Message.Chat.ID,
-		Text:   "Welcome! You uploaded your word pairs by sending a CSV file here. The bot will send you a random pairs every day. You can set the number of pairs and frequency of reminders in /setnum and /setfreq commands.",
+		Text:   "Welcome!\n\nFor start to reciving word pairs you need to uploade your word pairs by sending a CSV file here.\nThe bot will send you a random pairs every day.\nYou can set the number of pairs and frequency of reminders in /setnum and /setfreq commands.",
 	})
 }
 
