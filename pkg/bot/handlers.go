@@ -153,10 +153,14 @@ func HandleStart(ctx context.Context, b *bot.Bot, update *models.Update) {
 		}
 	}
 
-	b.SendMessage(ctx, &bot.SendMessageParams{
+	_, err := b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: update.Message.Chat.ID,
-		Text:   "Welcome!\n\nFor start to reciving word pairs you need to uploade your word pairs by sending a CSV file here.\nThe bot will send you a random pairs every day.\nYou can set the number of pairs and frequency of reminders in /setnum and /setfreq commands.",
+		Text:   "Welcome\\!\n\nThis bot helps to learn the word pairs or idioms\\, for instance\\, when you learn a language\\. It sends the messages to you with random idioms a few times a day\\. You can choose how often \\(`/setfreq n`\\) and how many \\(`/setnum m`\\) idioms to send every time\\.\n\nYou have to upload your vocabulary first\\. You can send a CSV file here with the word pairs separated by tabs\\. Please refer to [the example](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/example.csv) for a file format\\, or to [Dutch\\-English vocabulary](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/dutch-english.csv)\\. ",
+		ParseMode: models.ParseModeMarkdown,
 	})
+	if err != nil {
+		logger.Error("failed to send welcome message", "user_id", update.Message.From.ID, "error", err)
+	}
 }
 
 func HandleClear(ctx context.Context, b *bot.Bot, update *models.Update) {
