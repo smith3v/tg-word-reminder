@@ -1,4 +1,4 @@
-name: Publish docker latest
+name: Publish docker tag
 
 on:
   push:
