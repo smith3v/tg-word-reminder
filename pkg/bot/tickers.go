@@ -2,7 +2,6 @@ package bot
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/go-telegram/bot"
@@ -119,7 +118,7 @@ func sendReminders(ctx context.Context, b *bot.Bot, user db.UserSettings) {
 	if len(wordPairs) > 0 {
 		message := ""
 		for _, pair := range wordPairs {
-			message += fmt.Sprintf("%s  ||%s||\n", bot.EscapeMarkdown(pair.Word1), bot.EscapeMarkdown(pair.Word2)) // Using Telegram spoiler formatting
+			message += PrepareWordPairMessage(pair.Word1, pair.Word2)
 		}
 		_, err := b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID:    user.UserID,

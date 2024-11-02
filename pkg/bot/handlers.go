@@ -154,8 +154,8 @@ func HandleStart(ctx context.Context, b *bot.Bot, update *models.Update) {
 	}
 
 	_, err := b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID: update.Message.Chat.ID,
-		Text:   "Welcome\\!\n\nThis bot helps to learn the word pairs or idioms\\, for instance\\, when you learn a language\\. It sends the messages to you with random idioms a few times a day\\. You can choose how often \\(`/setfreq n`\\) and how many \\(`/setnum m`\\) idioms to send every time\\.\n\nYou have to upload your vocabulary first\\. You can send a CSV file here with the word pairs separated by tabs\\. Please refer to [the example](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/example.csv) for a file format\\, or to [Dutch\\-English vocabulary](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/dutch-english.csv)\\. ",
+		ChatID:    update.Message.Chat.ID,
+		Text:      "Welcome\\!\n\nThis bot helps to learn the word pairs or idioms\\, for instance\\, when you learn a language\\. It sends the messages to you with random idioms a few times a day\\. You can choose how often \\(`/setfreq n`\\) and how many \\(`/setnum m`\\) idioms to send every time\\.\n\nYou have to upload your vocabulary first\\. You can send a CSV file here with the word pairs separated by tabs\\. Please refer to [the example](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/example.csv) for a file format\\, or to [Dutch\\-English vocabulary](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/dutch-english.csv)\\. ",
 		ParseMode: models.ParseModeMarkdown,
 	})
 	if err != nil {
@@ -280,7 +280,7 @@ func HandleGetPair(ctx context.Context, b *bot.Bot, update *models.Update) {
 		return
 	}
 
-	message := fmt.Sprintf("%s  ||%s||", bot.EscapeMarkdown(wordPair.Word1), bot.EscapeMarkdown(wordPair.Word2)) // Using Telegram spoiler formatting
+	message := PrepareWordPairMessage(wordPair.Word1, wordPair.Word2)
 
 	_, err := b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:    update.Message.Chat.ID,
