@@ -4,7 +4,7 @@ This is a Telegram bot built using Go that allows users to upload word pairs and
 
 ## Features
 
-- Upload word pairs in the format `word1,word2`.
+- Upload word pairs as a tab separated CSV (`word1\tword2`).
 - Clear uploaded word pairs.
 - Set the number of pairs to send in reminders.
 - Set the frequency of reminders per day.

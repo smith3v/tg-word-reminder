@@ -60,11 +60,15 @@ func createUserTicker(user db.UserSettings) struct {
 	user   db.UserSettings
 } {
 	var ticker *time.Ticker
-	if user.RemindersPerDay > 24 {
+	switch {
+	case user.RemindersPerDay >= 24*60:
+		ticker = time.NewTicker(time.Minute)
+	case user.RemindersPerDay > 24:
 		interval := time.Duration(24*60/user.RemindersPerDay) * time.Minute
 		ticker = time.NewTicker(interval)
-	} else {
-		ticker = time.NewTicker(time.Duration(24 * int(time.Hour) / user.RemindersPerDay))
+	default:
+		interval := 24 * time.Hour / time.Duration(user.RemindersPerDay)
+		ticker = time.NewTicker(interval)
 	}
 	return struct {
 		ticker *time.Ticker
