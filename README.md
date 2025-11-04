@@ -12,7 +12,7 @@ This is a Telegram bot built using Go that allows users to upload word pairs and
 
 ## Prerequisites
 
-- Go 1.23 or newer
+- Go 1.25 or newer
 - PostgreSQL database
 - A Telegram bot token (create one using [BotFather](https://core.telegram.org/bots#botfather))
 

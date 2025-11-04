@@ -1,6 +1,6 @@
 module github.com/smith3v/tg-word-reminder
 
-go 1.23.2
+go 1.25
 
 require (
 	github.com/go-telegram/bot v1.8.3
