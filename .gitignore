@@ -1,3 +1,4 @@
 config.json
 /tg-word-reminder
 .DS_Store
+.gocache
