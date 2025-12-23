@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/go-telegram/bot"
@@ -35,7 +34,7 @@ func DefaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	if update.Message.Document == nil {
 		_, err := b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
-			Text:   "Say /getpair, /setnum, /setfreq, or /clear to use the bot. If you attach a CSV file, I'll upload the word pairs to your account.",
+			Text:   "Type /start to initialize the bot /getpair to get a random pair, /settings to configure your preferences, or /clear to clean up your vocabulary. If you attach a CSV file, I'll upload the word pairs to your account.",
 		})
 		if err != nil {
 			logger.Error("failed to send message in defaultHandler", "error", err)
@@ -157,7 +156,7 @@ func HandleStart(ctx context.Context, b *bot.Bot, update *models.Update) {
 
 	_, err := b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:    update.Message.Chat.ID,
-		Text:      "Welcome\\!\n\nThis bot helps to learn the word pairs or idioms\\, for instance\\, when you learn a language\\. It sends the messages to you with random idioms a few times a day\\. You can choose how often \\(`/setfreq n`\\) and how many \\(`/setnum m`\\) idioms to send every time\\.\n\nYou have to upload your vocabulary first\\. You can send a CSV file here with the word pairs separated by tabs\\. Please refer to [the example](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/example.csv) for a file format\\, or to [Dutch\\-English vocabulary](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/dutch-english.csv)\\. ",
+		Text:      "Welcome\\!\n\nThis bot helps to learn the word pairs or idioms\\, for instance\\, when you learn a language\\. It sends the messages to you with random idioms a few times a day\\. You can configure reminder frequency and pair counts from \\(/settings\\)\\.\n\nTo make it useful, you have to upload your vocabulary first\\. You can submit a CSV file here with the word pairs separated by tabs\\. Please refer to [the example](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/example.csv) for a file format\\, or to [Dutch\\-English vocabulary](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/dutch-english.csv)\\. ",
 		ParseMode: models.ParseModeMarkdown,
 	})
 	if err != nil {
@@ -338,160 +337,6 @@ func HandleClear(ctx context.Context, b *bot.Bot, update *models.Update) {
 	b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: update.Message.Chat.ID,
 		Text:   "Your word pair list has been cleared.",
-	})
-}
-
-func HandleSetNumOfPairs(ctx context.Context, b *bot.Bot, update *models.Update) {
-	if update == nil || update.Message == nil || update.Message.From == nil || update.Message.Chat.ID == 0 {
-		logger.Error("invalid update in handleSetPairs")
-		return
-	}
-
-	parts := strings.Fields(update.Message.Text)
-	if len(parts) == 1 {
-		var settings db.UserSettings
-		if err := db.DB.Where("user_id = ?", update.Message.From.ID).First(&settings).Error; err != nil {
-			if err == gorm.ErrRecordNotFound {
-				b.SendMessage(ctx, &bot.SendMessageParams{
-					ChatID: update.Message.Chat.ID,
-					Text:   "Settings not found. Send /start to initialize your account.",
-				})
-				return
-			}
-			logger.Error("failed to load user settings", "user_id", update.Message.From.ID, "error", err)
-			b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID: update.Message.Chat.ID,
-				Text:   "Failed to load your settings. Please try again later.",
-			})
-			return
-		}
-
-		text, keyboard, err := ui.RenderPairs(settings.PairsToSend)
-		if err != nil {
-			logger.Error("failed to render pairs settings", "user_id", update.Message.From.ID, "error", err)
-			b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID: update.Message.Chat.ID,
-				Text:   "Failed to render settings. Please try again later.",
-			})
-			return
-		}
-
-		if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID:      update.Message.Chat.ID,
-			Text:        text,
-			ReplyMarkup: keyboard,
-		}); err != nil {
-			logger.Error("failed to send pairs settings", "user_id", update.Message.From.ID, "error", err)
-		}
-		return
-	}
-	if len(parts) != 2 {
-		b.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID: update.Message.Chat.ID,
-			Text:   "Please use the format: /setnum <number>\n\nTo set the number of pairs in each reminder.",
-		})
-		return
-	}
-
-	pairsCount, err := strconv.Atoi(parts[1])
-	if err != nil || pairsCount <= 0 {
-		b.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID: update.Message.Chat.ID,
-			Text:   "Please provide a valid number of pairs in each reminder.",
-		})
-		return
-	}
-
-	settings := db.UserSettings{UserID: update.Message.From.ID, PairsToSend: pairsCount}
-	if err := db.DB.Where("user_id = ?", update.Message.From.ID).Assign(settings).FirstOrCreate(&settings).Error; err != nil {
-		logger.Error("failed to update user settings", "error", err)
-		b.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID: update.Message.Chat.ID,
-			Text:   "Failed to update settings. Please try again.",
-		})
-		return
-	}
-
-	b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID: update.Message.Chat.ID,
-		Text:   fmt.Sprintf("Number of pairs in each reminder has been set to %d.", pairsCount),
-	})
-}
-
-func HandleSetFrequency(ctx context.Context, b *bot.Bot, update *models.Update) {
-	if update == nil || update.Message == nil || update.Message.From == nil || update.Message.Chat.ID == 0 {
-		logger.Error("invalid update in handleSetFrequency")
-		return
-	}
-
-	parts := strings.Fields(update.Message.Text)
-	if len(parts) == 1 {
-		var settings db.UserSettings
-		if err := db.DB.Where("user_id = ?", update.Message.From.ID).First(&settings).Error; err != nil {
-			if err == gorm.ErrRecordNotFound {
-				b.SendMessage(ctx, &bot.SendMessageParams{
-					ChatID: update.Message.Chat.ID,
-					Text:   "Settings not found. Send /start to initialize your account.",
-				})
-				return
-			}
-			logger.Error("failed to load user settings", "user_id", update.Message.From.ID, "error", err)
-			b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID: update.Message.Chat.ID,
-				Text:   "Failed to load your settings. Please try again later.",
-			})
-			return
-		}
-
-		text, keyboard, err := ui.RenderFreq(settings.RemindersPerDay)
-		if err != nil {
-			logger.Error("failed to render frequency settings", "user_id", update.Message.From.ID, "error", err)
-			b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID: update.Message.Chat.ID,
-				Text:   "Failed to render settings. Please try again later.",
-			})
-			return
-		}
-
-		if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID:      update.Message.Chat.ID,
-			Text:        text,
-			ReplyMarkup: keyboard,
-		}); err != nil {
-			logger.Error("failed to send frequency settings", "user_id", update.Message.From.ID, "error", err)
-		}
-		return
-	}
-	if len(parts) != 2 {
-		b.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID: update.Message.Chat.ID,
-			Text:   "Please use the format: /setfreq <number>\n\nTo set the frequency of reminders per day.",
-		})
-		return
-	}
-
-	frequency, err := strconv.Atoi(parts[1])
-	if err != nil || frequency <= 0 {
-		b.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID: update.Message.Chat.ID,
-			Text:   "Please provide a valid number of reminders per day.",
-		})
-		return
-	}
-
-	settings := db.UserSettings{UserID: update.Message.From.ID, RemindersPerDay: frequency}
-	if err := db.DB.Where("user_id = ?", update.Message.From.ID).Assign(settings).FirstOrCreate(&settings).Error; err != nil {
-		logger.Error("failed to update user settings", "error", err)
-		b.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID: update.Message.Chat.ID,
-			Text:   "Failed to update settings. Please try again.",
-		})
-		return
-	}
-
-	b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID: update.Message.Chat.ID,
-		Text:   fmt.Sprintf("Frequency of reminders has been set to %d per day.", frequency),
 	})
 }
 

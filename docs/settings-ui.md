@@ -2,7 +2,7 @@
 
 This document describes the UX and the technical protocol for the **Settings** screen of the **tg-word-reminder** Telegram bot.
 
-Goal: make bot configuration convenient in Telegram so the user **does not need to type commands with arguments** (e.g., `/setnum 5`) and can configure everything by pressing buttons.
+Goal: make bot configuration convenient in Telegram so the user **does not need to type commands with arguments** and can configure everything by pressing buttons.
 
 ---
 
@@ -28,10 +28,6 @@ Platform constraints:
 - Settings are accessible via a single entry point: **`/settings`**.
 - All actions are performed via **inline buttons**.
 - Settings are edited in a single “screen” (a single message) that the bot **edits**, instead of spamming the chat.
-
-### Secondary
-- Keep backward compatibility:
-  - `/setnum` and `/setfreq` without an argument open the corresponding UI screen.
 
 ---
 
@@ -160,16 +156,6 @@ Main requirement:
 
 ---
 
-## 10. Backward compatibility with commands
-
-### `/setnum`
-- If there is no argument (`/setnum`) → open the Pairs screen (inline UI).
-
-### `/setfreq`
-- If there is no argument (`/setfreq`) → open the Frequency screen (inline UI).
-
----
-
 ## 11. Errors and edge cases
 
 - Unknown `callback_data`:
@@ -203,8 +189,6 @@ Main requirement:
   - `Back` returns to Home
 - `Frequency` works the same way
 - `Close` removes the keyboard
-- `/setnum` without argument opens the Pairs UI
-- `/setfreq` without argument opens the Frequency UI
 - polling receives `callback_query` updates correctly
 
 Short checklist:

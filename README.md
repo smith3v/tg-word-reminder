@@ -59,9 +59,8 @@ You can send a CSV file with word pairs to the bot to upload them. Please refer 
 
 - **Commands:**
   - `/getpair`: Get a random word pair.
+  - `/settings`: Configure reminders and pairs per reminder.
   - `/clear`: Clear all uploaded word pairs.
-  - `/setnum <number>`: Set the number of pairs to send in reminders.
-  - `/setfreq <number>`: Set the frequency of reminders per day.
 
 ## Database Setup
 
