@@ -1,0 +1,223 @@
+package ui
+
+import (
+	"errors"
+	"strconv"
+	"strings"
+)
+
+const (
+	CallbackPrefix     = "s:"
+	MaxCallbackDataLen = 64
+)
+
+type Screen string
+
+const (
+	ScreenHome      Screen = "home"
+	ScreenPairs     Screen = "pairs"
+	ScreenFrequency Screen = "freq"
+	ScreenClose     Screen = "close"
+)
+
+type Operation string
+
+const (
+	OpNone Operation = ""
+	OpInc  Operation = "+1"
+	OpDec  Operation = "-1"
+	OpSet  Operation = "set"
+)
+
+type Action struct {
+	Screen Screen
+	Op     Operation
+	Value  int
+}
+
+var (
+	errInvalidPrefix       = errors.New("invalid callback prefix")
+	errInvalidAction       = errors.New("invalid callback action")
+	errInvalidOperation    = errors.New("invalid callback operation")
+	errInvalidValue        = errors.New("invalid callback value")
+	errCallbackDataTooLong = errors.New("callback data too long")
+)
+
+func BuildHomeCallback() (string, error) {
+	return buildSimpleCallback(ScreenHome)
+}
+
+func BuildPairsCallback() (string, error) {
+	return buildSimpleCallback(ScreenPairs)
+}
+
+func BuildFrequencyCallback() (string, error) {
+	return buildSimpleCallback(ScreenFrequency)
+}
+
+func BuildCloseCallback() (string, error) {
+	return buildSimpleCallback(ScreenClose)
+}
+
+func BuildPairsIncCallback() (string, error) {
+	return buildAdjustCallback(ScreenPairs, OpInc)
+}
+
+func BuildPairsDecCallback() (string, error) {
+	return buildAdjustCallback(ScreenPairs, OpDec)
+}
+
+func BuildPairsSetCallback(value int) (string, error) {
+	return buildSetCallback(ScreenPairs, value)
+}
+
+func BuildFrequencyIncCallback() (string, error) {
+	return buildAdjustCallback(ScreenFrequency, OpInc)
+}
+
+func BuildFrequencyDecCallback() (string, error) {
+	return buildAdjustCallback(ScreenFrequency, OpDec)
+}
+
+func BuildFrequencySetCallback(value int) (string, error) {
+	return buildSetCallback(ScreenFrequency, value)
+}
+
+func ParseCallbackData(data string) (Action, error) {
+	if data == "" {
+		return Action{}, errInvalidAction
+	}
+	if len(data) > MaxCallbackDataLen {
+		return Action{}, errCallbackDataTooLong
+	}
+	if !strings.HasPrefix(data, CallbackPrefix) {
+		return Action{}, errInvalidPrefix
+	}
+
+	parts := strings.Split(data, ":")
+	if len(parts) < 2 || parts[0] != "s" {
+		return Action{}, errInvalidPrefix
+	}
+
+	switch len(parts) {
+	case 2:
+		return parseSimpleAction(parts[1])
+	case 3:
+		return parseAdjustAction(parts[1], parts[2])
+	case 4:
+		return parseSetAction(parts[1], parts[2], parts[3])
+	default:
+		return Action{}, errInvalidAction
+	}
+}
+
+func buildSimpleCallback(screen Screen) (string, error) {
+	data := CallbackPrefix + string(screen)
+	return validateCallbackData(data)
+}
+
+func buildAdjustCallback(screen Screen, op Operation) (string, error) {
+	if screen != ScreenPairs && screen != ScreenFrequency {
+		return "", errInvalidAction
+	}
+	if op != OpInc && op != OpDec {
+		return "", errInvalidOperation
+	}
+	data := CallbackPrefix + string(screen) + ":" + string(op)
+	return validateCallbackData(data)
+}
+
+func buildSetCallback(screen Screen, value int) (string, error) {
+	if screen != ScreenPairs && screen != ScreenFrequency {
+		return "", errInvalidAction
+	}
+	if value < 0 {
+		return "", errInvalidValue
+	}
+	data := CallbackPrefix + string(screen) + ":" + string(OpSet) + ":" + strconv.Itoa(value)
+	return validateCallbackData(data)
+}
+
+func validateCallbackData(data string) (string, error) {
+	if data == "" {
+		return "", errInvalidAction
+	}
+	if len(data) > MaxCallbackDataLen {
+		return "", errCallbackDataTooLong
+	}
+	return data, nil
+}
+
+func parseSimpleAction(screenPart string) (Action, error) {
+	screen, err := parseScreen(screenPart)
+	if err != nil {
+		return Action{}, err
+	}
+	return Action{Screen: screen, Op: OpNone, Value: 0}, nil
+}
+
+func parseAdjustAction(screenPart, opPart string) (Action, error) {
+	screen, err := parseScreen(screenPart)
+	if err != nil {
+		return Action{}, err
+	}
+	if screen != ScreenPairs && screen != ScreenFrequency {
+		return Action{}, errInvalidAction
+	}
+	switch Operation(opPart) {
+	case OpInc:
+		return Action{Screen: screen, Op: OpInc, Value: 1}, nil
+	case OpDec:
+		return Action{Screen: screen, Op: OpDec, Value: -1}, nil
+	default:
+		return Action{}, errInvalidOperation
+	}
+}
+
+func parseSetAction(screenPart, opPart, valuePart string) (Action, error) {
+	screen, err := parseScreen(screenPart)
+	if err != nil {
+		return Action{}, err
+	}
+	if screen != ScreenPairs && screen != ScreenFrequency {
+		return Action{}, errInvalidAction
+	}
+	if Operation(opPart) != OpSet {
+		return Action{}, errInvalidOperation
+	}
+	if !isASCIIUnsignedInt(valuePart) {
+		return Action{}, errInvalidValue
+	}
+	value, err := strconv.Atoi(valuePart)
+	if err != nil {
+		return Action{}, errInvalidValue
+	}
+	return Action{Screen: screen, Op: OpSet, Value: value}, nil
+}
+
+func parseScreen(screenPart string) (Screen, error) {
+	switch Screen(screenPart) {
+	case ScreenHome:
+		return ScreenHome, nil
+	case ScreenPairs:
+		return ScreenPairs, nil
+	case ScreenFrequency:
+		return ScreenFrequency, nil
+	case ScreenClose:
+		return ScreenClose, nil
+	default:
+		return "", errInvalidAction
+	}
+}
+
+func isASCIIUnsignedInt(value string) bool {
+	if value == "" {
+		return false
+	}
+	for i := 0; i < len(value); i++ {
+		if value[i] < '0' || value[i] > '9' {
+			return false
+		}
+	}
+	return true
+}

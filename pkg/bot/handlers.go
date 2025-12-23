@@ -14,6 +14,7 @@ import (
 	"github.com/smith3v/tg-word-reminder/pkg/config"
 	"github.com/smith3v/tg-word-reminder/pkg/db"
 	"github.com/smith3v/tg-word-reminder/pkg/logger"
+	"github.com/smith3v/tg-word-reminder/pkg/ui"
 	"gorm.io/gorm"
 )
 
@@ -160,6 +161,118 @@ func HandleStart(ctx context.Context, b *bot.Bot, update *models.Update) {
 	})
 	if err != nil {
 		logger.Error("failed to send welcome message", "user_id", update.Message.From.ID, "error", err)
+	}
+}
+
+func HandleSettings(ctx context.Context, b *bot.Bot, update *models.Update) {
+	if update == nil || update.Message == nil || update.Message.From == nil || update.Message.Chat.ID == 0 {
+		logger.Error("invalid update in HandleSettings")
+		return
+	}
+
+	var settings db.UserSettings
+	if err := db.DB.Where("user_id = ?", update.Message.From.ID).First(&settings).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			_, sendErr := b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: update.Message.Chat.ID,
+				Text:   "Settings not found. Send /start to initialize your account.",
+			})
+			if sendErr != nil {
+				logger.Error("failed to send missing settings message", "user_id", update.Message.From.ID, "error", sendErr)
+			}
+			return
+		}
+		logger.Error("failed to load user settings", "user_id", update.Message.From.ID, "error", err)
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "Failed to load your settings. Please try again later.",
+		})
+		return
+	}
+
+	text, keyboard, err := ui.RenderHome(settings.PairsToSend, settings.RemindersPerDay)
+	if err != nil {
+		logger.Error("failed to render settings home", "user_id", update.Message.From.ID, "error", err)
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "Failed to render settings. Please try again later.",
+		})
+		return
+	}
+
+	if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:      update.Message.Chat.ID,
+		Text:        text,
+		ReplyMarkup: keyboard,
+	}); err != nil {
+		logger.Error("failed to send settings message", "user_id", update.Message.From.ID, "error", err)
+	}
+}
+
+func HandleSettingsCallback(ctx context.Context, b *bot.Bot, update *models.Update) {
+	if update == nil || update.CallbackQuery == nil {
+		logger.Error("invalid update in HandleSettingsCallback")
+		return
+	}
+
+	callbackID := update.CallbackQuery.ID
+	if callbackID != "" {
+		if _, err := b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+			CallbackQueryID: callbackID,
+		}); err != nil {
+			logger.Error("failed to answer callback query", "error", err)
+		}
+	}
+
+	action, err := ui.ParseCallbackData(update.CallbackQuery.Data)
+	if err != nil {
+		logger.Error("failed to parse settings callback", "data", update.CallbackQuery.Data, "error", err)
+		return
+	}
+
+	if action.Op != ui.OpNone || (action.Screen != ui.ScreenHome && action.Screen != ui.ScreenPairs && action.Screen != ui.ScreenFrequency) {
+		return
+	}
+
+	message := update.CallbackQuery.Message
+	if message.Type != models.MaybeInaccessibleMessageTypeMessage || message.Message == nil {
+		logger.Error("callback query message is inaccessible", "user_id", update.CallbackQuery.From.ID)
+		return
+	}
+	msg := message.Message
+	if msg.Chat.ID == 0 {
+		logger.Error("callback query message chat ID is missing", "user_id", update.CallbackQuery.From.ID)
+		return
+	}
+
+	var settings db.UserSettings
+	if err := db.DB.Where("user_id = ?", update.CallbackQuery.From.ID).First(&settings).Error; err != nil {
+		logger.Error("failed to load user settings", "user_id", update.CallbackQuery.From.ID, "error", err)
+		return
+	}
+
+	var text string
+	var keyboard *models.InlineKeyboardMarkup
+	switch action.Screen {
+	case ui.ScreenHome:
+		text, keyboard, err = ui.RenderHome(settings.PairsToSend, settings.RemindersPerDay)
+	case ui.ScreenPairs:
+		text, keyboard, err = ui.RenderPairs(settings.PairsToSend)
+	case ui.ScreenFrequency:
+		text, keyboard, err = ui.RenderFreq(settings.RemindersPerDay)
+	}
+	if err != nil {
+		logger.Error("failed to render settings screen", "user_id", update.CallbackQuery.From.ID, "error", err)
+		return
+	}
+
+	if _, err := b.EditMessageText(ctx, &bot.EditMessageTextParams{
+		ChatID:      msg.Chat.ID,
+		MessageID:   msg.ID,
+		Text:        text,
+		ReplyMarkup: keyboard,
+	}); err != nil {
+		logger.Error("failed to edit settings message", "user_id", update.CallbackQuery.From.ID, "error", err)
 	}
 }
 
