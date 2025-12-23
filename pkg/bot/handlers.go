@@ -4,6 +4,7 @@ package bot
 import (
 	"context"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -216,50 +217,101 @@ func HandleSettingsCallback(ctx context.Context, b *bot.Bot, update *models.Upda
 	}
 
 	callbackID := update.CallbackQuery.ID
-	if callbackID != "" {
+	answered := false
+	answerCallback := func(text string) {
+		if answered || callbackID == "" {
+			return
+		}
 		if _, err := b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 			CallbackQueryID: callbackID,
+			Text:            text,
 		}); err != nil {
 			logger.Error("failed to answer callback query", "error", err)
 		}
+		answered = true
 	}
 
 	action, err := ui.ParseCallbackData(update.CallbackQuery.Data)
 	if err != nil {
 		logger.Error("failed to parse settings callback", "data", update.CallbackQuery.Data, "error", err)
-		return
-	}
-
-	if action.Op != ui.OpNone || (action.Screen != ui.ScreenHome && action.Screen != ui.ScreenPairs && action.Screen != ui.ScreenFrequency) {
+		answerCallback("Unknown command")
 		return
 	}
 
 	message := update.CallbackQuery.Message
 	if message.Type != models.MaybeInaccessibleMessageTypeMessage || message.Message == nil {
 		logger.Error("callback query message is inaccessible", "user_id", update.CallbackQuery.From.ID)
+		answerCallback("Message is not available")
 		return
 	}
 	msg := message.Message
 	if msg.Chat.ID == 0 {
 		logger.Error("callback query message chat ID is missing", "user_id", update.CallbackQuery.From.ID)
+		answerCallback("Message is not available")
 		return
 	}
 
 	var settings db.UserSettings
 	if err := db.DB.Where("user_id = ?", update.CallbackQuery.From.ID).First(&settings).Error; err != nil {
 		logger.Error("failed to load user settings", "user_id", update.CallbackQuery.From.ID, "error", err)
+		answerCallback("Failed to load settings")
+		return
+	}
+
+	newSettings, nextScreen, changed, err := ApplyAction(settings, action)
+	if err != nil {
+		if errors.Is(err, ErrBelowMin) || errors.Is(err, ErrAboveMax) {
+			min, max, ok := boundsForScreen(action.Screen)
+			if ok {
+				if errors.Is(err, ErrBelowMin) {
+					answerCallback(fmt.Sprintf("Minimum is %d", min))
+				} else {
+					answerCallback(fmt.Sprintf("Maximum is %d", max))
+				}
+			} else {
+				answerCallback("Unknown command")
+			}
+			return
+		} else {
+			logger.Error("failed to apply settings action", "user_id", update.CallbackQuery.From.ID, "error", err)
+			answerCallback("Unknown command")
+			return
+		}
+	}
+
+	if changed {
+		if err := db.DB.Save(&newSettings).Error; err != nil {
+			logger.Error("failed to save user settings", "user_id", update.CallbackQuery.From.ID, "error", err)
+			answerCallback("Failed to save settings")
+			return
+		}
+	}
+
+	if !answered {
+		answerCallback("")
+	}
+
+	if !changed && action.Op == ui.OpSet {
 		return
 	}
 
 	var text string
 	var keyboard *models.InlineKeyboardMarkup
-	switch action.Screen {
+	switch nextScreen {
 	case ui.ScreenHome:
-		text, keyboard, err = ui.RenderHome(settings.PairsToSend, settings.RemindersPerDay)
+		text, keyboard, err = ui.RenderHome(newSettings.PairsToSend, newSettings.RemindersPerDay)
 	case ui.ScreenPairs:
-		text, keyboard, err = ui.RenderPairs(settings.PairsToSend)
+		text, keyboard, err = ui.RenderPairs(newSettings.PairsToSend)
 	case ui.ScreenFrequency:
-		text, keyboard, err = ui.RenderFreq(settings.RemindersPerDay)
+		text, keyboard, err = ui.RenderFreq(newSettings.RemindersPerDay)
+	case ui.ScreenClose:
+		text = "Settings saved ✅"
+		keyboard = &models.InlineKeyboardMarkup{
+			InlineKeyboard: [][]models.InlineKeyboardButton{},
+		}
+	default:
+		logger.Error("unknown settings screen", "screen", nextScreen)
+		return
 	}
 	if err != nil {
 		logger.Error("failed to render settings screen", "user_id", update.CallbackQuery.From.ID, "error", err)
@@ -296,6 +348,43 @@ func HandleSetNumOfPairs(ctx context.Context, b *bot.Bot, update *models.Update)
 	}
 
 	parts := strings.Fields(update.Message.Text)
+	if len(parts) == 1 {
+		var settings db.UserSettings
+		if err := db.DB.Where("user_id = ?", update.Message.From.ID).First(&settings).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				b.SendMessage(ctx, &bot.SendMessageParams{
+					ChatID: update.Message.Chat.ID,
+					Text:   "Settings not found. Send /start to initialize your account.",
+				})
+				return
+			}
+			logger.Error("failed to load user settings", "user_id", update.Message.From.ID, "error", err)
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: update.Message.Chat.ID,
+				Text:   "Failed to load your settings. Please try again later.",
+			})
+			return
+		}
+
+		text, keyboard, err := ui.RenderPairs(settings.PairsToSend)
+		if err != nil {
+			logger.Error("failed to render pairs settings", "user_id", update.Message.From.ID, "error", err)
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: update.Message.Chat.ID,
+				Text:   "Failed to render settings. Please try again later.",
+			})
+			return
+		}
+
+		if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:      update.Message.Chat.ID,
+			Text:        text,
+			ReplyMarkup: keyboard,
+		}); err != nil {
+			logger.Error("failed to send pairs settings", "user_id", update.Message.From.ID, "error", err)
+		}
+		return
+	}
 	if len(parts) != 2 {
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
@@ -336,6 +425,43 @@ func HandleSetFrequency(ctx context.Context, b *bot.Bot, update *models.Update) 
 	}
 
 	parts := strings.Fields(update.Message.Text)
+	if len(parts) == 1 {
+		var settings db.UserSettings
+		if err := db.DB.Where("user_id = ?", update.Message.From.ID).First(&settings).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				b.SendMessage(ctx, &bot.SendMessageParams{
+					ChatID: update.Message.Chat.ID,
+					Text:   "Settings not found. Send /start to initialize your account.",
+				})
+				return
+			}
+			logger.Error("failed to load user settings", "user_id", update.Message.From.ID, "error", err)
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: update.Message.Chat.ID,
+				Text:   "Failed to load your settings. Please try again later.",
+			})
+			return
+		}
+
+		text, keyboard, err := ui.RenderFreq(settings.RemindersPerDay)
+		if err != nil {
+			logger.Error("failed to render frequency settings", "user_id", update.Message.From.ID, "error", err)
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: update.Message.Chat.ID,
+				Text:   "Failed to render settings. Please try again later.",
+			})
+			return
+		}
+
+		if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:      update.Message.Chat.ID,
+			Text:        text,
+			ReplyMarkup: keyboard,
+		}); err != nil {
+			logger.Error("failed to send frequency settings", "user_id", update.Message.From.ID, "error", err)
+		}
+		return
+	}
 	if len(parts) != 2 {
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,

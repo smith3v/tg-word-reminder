@@ -156,12 +156,12 @@ func TestHandleSetNumOfPairsRejectsInvalidInput(t *testing.T) {
 	client := newMockClient()
 	b := newTestTelegramBot(t, client)
 
-	update := newTestUpdate("/setnum", 42)
+	update := newTestUpdate("/setnum 0", 42)
 
 	HandleSetNumOfPairs(context.Background(), b, update)
 
 	got := client.lastMessageText(t)
-	if !strings.Contains(got, "Please use the format") {
+	if !strings.Contains(got, "Please provide a valid number") {
 		t.Fatalf("expected validation message, got %q", got)
 	}
 
@@ -171,6 +171,43 @@ func TestHandleSetNumOfPairsRejectsInvalidInput(t *testing.T) {
 	}
 	if count != 0 {
 		t.Fatalf("expected no user settings to be created, got %d", count)
+	}
+}
+
+func TestHandleSetNumOfPairsNoArgsOpensSettings(t *testing.T) {
+	setupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+
+	client := newMockClient()
+	b := newTestTelegramBot(t, client)
+
+	settings := dbpkg.UserSettings{
+		UserID:          42,
+		PairsToSend:     2,
+		RemindersPerDay: 3,
+	}
+	if err := dbpkg.DB.Create(&settings).Error; err != nil {
+		t.Fatalf("failed to create settings: %v", err)
+	}
+
+	update := newTestUpdate("/setnum", 42)
+
+	HandleSetNumOfPairs(context.Background(), b, update)
+
+	got := client.lastMessageText(t)
+	if !strings.Contains(got, "Pairs per reminder") {
+		t.Fatalf("expected pairs settings message, got %q", got)
+	}
+	if !strings.Contains(got, "Current value: 2") {
+		t.Fatalf("expected current value in message, got %q", got)
+	}
+
+	var count int64
+	if err := dbpkg.DB.Model(&dbpkg.UserSettings{}).Count(&count).Error; err != nil {
+		t.Fatalf("failed to count user settings: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected one user setting, got %d", count)
 	}
 }
 
@@ -211,6 +248,43 @@ func TestHandleSetFrequencyRejectsInvalidInput(t *testing.T) {
 	got := client.lastMessageText(t)
 	if !strings.Contains(got, "Please provide a valid number") {
 		t.Fatalf("expected validation message, got %q", got)
+	}
+}
+
+func TestHandleSetFrequencyNoArgsOpensSettings(t *testing.T) {
+	setupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+
+	client := newMockClient()
+	b := newTestTelegramBot(t, client)
+
+	settings := dbpkg.UserSettings{
+		UserID:          202,
+		PairsToSend:     2,
+		RemindersPerDay: 4,
+	}
+	if err := dbpkg.DB.Create(&settings).Error; err != nil {
+		t.Fatalf("failed to create settings: %v", err)
+	}
+
+	update := newTestUpdate("/setfreq", 202)
+
+	HandleSetFrequency(context.Background(), b, update)
+
+	got := client.lastMessageText(t)
+	if !strings.Contains(got, "Reminder frequency") {
+		t.Fatalf("expected frequency settings message, got %q", got)
+	}
+	if !strings.Contains(got, "Current value: 4") {
+		t.Fatalf("expected current value in message, got %q", got)
+	}
+
+	var count int64
+	if err := dbpkg.DB.Model(&dbpkg.UserSettings{}).Count(&count).Error; err != nil {
+		t.Fatalf("failed to count user settings: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected one user setting, got %d", count)
 	}
 }
 
