@@ -44,12 +44,63 @@ func TestApplyActionPairsIncrement(t *testing.T) {
 	}
 }
 
+func TestApplyActionPairsSetPreset(t *testing.T) {
+	settings := db.UserSettings{UserID: 1, PairsToSend: 2, RemindersPerDay: 3}
+
+	next, screen, changed, err := ApplyAction(settings, ui.Action{Screen: ui.ScreenPairs, Op: ui.OpSet, Value: 5})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if screen != ui.ScreenPairs {
+		t.Fatalf("expected pairs screen, got %v", screen)
+	}
+	if !changed {
+		t.Fatalf("expected settings to change")
+	}
+	if next.PairsToSend != 5 {
+		t.Fatalf("expected pairs to be 5, got %d", next.PairsToSend)
+	}
+}
+
+func TestApplyActionFrequencySetPreset(t *testing.T) {
+	settings := db.UserSettings{UserID: 1, PairsToSend: 2, RemindersPerDay: 3}
+
+	next, screen, changed, err := ApplyAction(settings, ui.Action{Screen: ui.ScreenFrequency, Op: ui.OpSet, Value: 10})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if screen != ui.ScreenFrequency {
+		t.Fatalf("expected frequency screen, got %v", screen)
+	}
+	if !changed {
+		t.Fatalf("expected settings to change")
+	}
+	if next.RemindersPerDay != 10 {
+		t.Fatalf("expected reminders to be 10, got %d", next.RemindersPerDay)
+	}
+}
+
 func TestApplyActionPairsBelowMin(t *testing.T) {
 	settings := db.UserSettings{UserID: 1, PairsToSend: MinPairsPerReminder, RemindersPerDay: 3}
 
 	_, screen, changed, err := ApplyAction(settings, ui.Action{Screen: ui.ScreenPairs, Op: ui.OpDec})
 	if !errors.Is(err, ErrBelowMin) {
 		t.Fatalf("expected ErrBelowMin, got %v", err)
+	}
+	if screen != ui.ScreenPairs {
+		t.Fatalf("expected pairs screen, got %v", screen)
+	}
+	if changed {
+		t.Fatalf("expected no change")
+	}
+}
+
+func TestApplyActionPairsSetAboveMax(t *testing.T) {
+	settings := db.UserSettings{UserID: 1, PairsToSend: 2, RemindersPerDay: 3}
+
+	_, screen, changed, err := ApplyAction(settings, ui.Action{Screen: ui.ScreenPairs, Op: ui.OpSet, Value: MaxPairsPerReminder + 1})
+	if !errors.Is(err, ErrAboveMax) {
+		t.Fatalf("expected ErrAboveMax, got %v", err)
 	}
 	if screen != ui.ScreenPairs {
 		t.Fatalf("expected pairs screen, got %v", screen)

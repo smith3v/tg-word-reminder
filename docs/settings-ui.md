@@ -206,3 +206,8 @@ Main requirement:
 - `/setnum` without argument opens the Pairs UI
 - `/setfreq` without argument opens the Frequency UI
 - polling receives `callback_query` updates correctly
+
+Short checklist:
+- Home shows current values after edits
+- Hitting min/max shows a callback hint and keeps the UI unchanged
+- Preset buttons update values and keep you on the same screen
