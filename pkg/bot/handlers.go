@@ -34,7 +34,8 @@ func DefaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	if update.Message.Document == nil {
 		_, err := b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
-			Text:   "Type /start to initialize the bot /getpair to get a random pair, /settings to configure your preferences, or /clear to clean up your vocabulary. If you attach a CSV file, I'll upload the word pairs to your account.",
+			Text:   "Type /start to initialize the bot\\, /getpair to get a random pair\\, /settings to configure your preferences\\, or /clear to clean up your vocabulary\\.\n\nIf you attach a CSV file here\\, I\\'ll upload the word pairs to your account\\. Please refer to [the example](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/example.csv) for a file format\\, or to [Dutch\\-English vocabulary example](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/dutch-english.csv)\\.",
+			ParseMode: models.ParseModeMarkdown,
 		})
 		if err != nil {
 			logger.Error("failed to send message in defaultHandler", "error", err)
@@ -156,7 +157,7 @@ func HandleStart(ctx context.Context, b *bot.Bot, update *models.Update) {
 
 	_, err := b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:    update.Message.Chat.ID,
-		Text:      "Welcome\\!\n\nThis bot helps to learn the word pairs or idioms\\, for instance\\, when you learn a language\\. It sends the messages to you with random idioms a few times a day\\. You can configure reminder frequency and pair counts from \\(/settings\\)\\.\n\nTo make it useful, you have to upload your vocabulary first\\. You can submit a CSV file here with the word pairs separated by tabs\\. Please refer to [the example](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/example.csv) for a file format\\, or to [Dutch\\-English vocabulary](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/dutch-english.csv)\\. ",
+		Text:      "Welcome\\!\n\nThis bot helps to learn the word pairs or idioms\\, for instance\\, when you learn a language\\. It sends the messages to you with random idioms a few times a day\\. You can configure reminder frequency and pair counts with /settings\\.\n\nTo make it useful, you have to upload your vocabulary first\\. You can submit a CSV file here with the word pairs separated by tabs\\. Please refer to [the example](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/example.csv) for a file format\\, or to [Dutch\\-English vocabulary](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/dutch-english.csv)\\. ",
 		ParseMode: models.ParseModeMarkdown,
 	})
 	if err != nil {
