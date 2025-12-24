@@ -35,10 +35,10 @@ func main() {
 	}
 
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypeExact, reminderBot.HandleStart)
+	b.RegisterHandler(bot.HandlerTypeMessageText, "/settings", bot.MatchTypeExact, reminderBot.HandleSettings)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/clear", bot.MatchTypeExact, reminderBot.HandleClear)
-	b.RegisterHandler(bot.HandlerTypeMessageText, "/setnum", bot.MatchTypePrefix, reminderBot.HandleSetNumOfPairs)
-	b.RegisterHandler(bot.HandlerTypeMessageText, "/setfreq", bot.MatchTypePrefix, reminderBot.HandleSetFrequency)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/getpair", bot.MatchTypeExact, reminderBot.HandleGetPair)
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "s:", bot.MatchTypePrefix, reminderBot.HandleSettingsCallback)
 
 	go reminderBot.StartPeriodicMessages(ctx, b)
 
