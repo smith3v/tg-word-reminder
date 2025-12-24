@@ -9,6 +9,7 @@ This is a Telegram bot built using Go that allows users to upload word pairs and
 - Set the number of pairs to send in reminders.
 - Set the frequency of reminders per day.
 - Periodic reminders sent to users with random word pairs.
+- Play an interactive `/game` quiz that drills your vocabulary pairs.
 
 ## Prerequisites
 
@@ -61,6 +62,15 @@ You can send a CSV file with word pairs to the bot to upload them. Please refer 
   - `/getpair`: Get a random word pair.
   - `/settings`: Configure reminders and pairs per reminder.
   - `/clear`: Clear all uploaded word pairs.
+  - `/game`: Start a five-pair quiz session.
+
+### Game mode
+
+- Start with `/game` in a private chat to launch a quiz session for your account.
+- The bot builds a deck of up to five unique word pairs (two prompt cards per pair, one in each direction) and shuffles them.
+- Answer the prompt directly in chat. Correct answers reveal the pair with a ✅ and remove that card from the deck.
+- Tap the 👀 inline button to reveal the answer. Reveals and incorrect answers both count as misses and return the card to the back of the deck.
+- The session ends when every card is answered correctly or after 15 minutes of inactivity, and the bot reports your correct count and accuracy.
 
 ## Database Setup
 

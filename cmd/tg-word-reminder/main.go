@@ -38,9 +38,12 @@ func main() {
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/settings", bot.MatchTypeExact, reminderBot.HandleSettings)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/clear", bot.MatchTypeExact, reminderBot.HandleClear)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/getpair", bot.MatchTypeExact, reminderBot.HandleGetPair)
+	b.RegisterHandler(bot.HandlerTypeMessageText, "/game", bot.MatchTypeExact, reminderBot.HandleGame)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "s:", bot.MatchTypePrefix, reminderBot.HandleSettingsCallback)
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, reminderBot.GameCallbackPrefix, bot.MatchTypePrefix, reminderBot.HandleGameReveal)
 
 	go reminderBot.StartPeriodicMessages(ctx, b)
+	go reminderBot.StartGameSweeper(ctx, b)
 
 	logger.Info("Starting bot...")
 	b.Start(ctx)
