@@ -48,22 +48,37 @@ type GameSession struct {
 	currentCard      *Card
 	currentMessageID int
 	currentResolved  bool
+	currentToken     string
 }
 
-var (
-	sessionsMu sync.Mutex
-	sessions   = make(map[string]*GameSession)
-)
+// GameManager manages active game sessions with thread-safe access.
+type GameManager struct {
+	mu           sync.Mutex
+	sessions     map[string]*GameSession
+	now          func() time.Time
+	tokenCounter int64
+}
+
+// NewGameManager initializes a manager with an injectable clock.
+func NewGameManager(now func() time.Time) *GameManager {
+	if now == nil {
+		now = time.Now
+	}
+	return &GameManager{
+		sessions: make(map[string]*GameSession),
+		now:      now,
+	}
+}
 
 // getSessionKey builds the map key for a user's active game session.
 func getSessionKey(chatID, userID int64) string {
 	return fmt.Sprintf("%d:%d", chatID, userID)
 }
 
-// startNewSession initializes a session with a shuffled deck derived from pairs.
-func startNewSession(chatID, userID int64, pairs []db.WordPair) *GameSession {
-	now := time.Now()
-	deck := buildDeck(pairs)
+// StartOrRestart initializes or replaces a session and sets the first prompt.
+func (m *GameManager) StartOrRestart(chatID, userID int64, vocabPairs []db.WordPair) *GameSession {
+	now := m.now()
+	deck := buildDeck(vocabPairs)
 	shuffleDeck(deck)
 
 	session := &GameSession{
@@ -76,9 +91,12 @@ func startNewSession(chatID, userID int64, pairs []db.WordPair) *GameSession {
 	}
 
 	key := getSessionKey(chatID, userID)
-	sessionsMu.Lock()
-	sessions[key] = session
-	sessionsMu.Unlock()
+	m.mu.Lock()
+	m.sessions[key] = session
+	if len(deck) > 0 {
+		m.nextPromptLocked(session)
+	}
+	m.mu.Unlock()
 
 	return session
 }
@@ -113,29 +131,42 @@ func shuffleDeck(deck []Card) {
 	})
 }
 
-// popNextCard dequeues the next card and marks it as the current prompt.
-func popNextCard(session *GameSession) (Card, bool) {
-	if session == nil || len(session.deck) == 0 {
-		return Card{}, false
-	}
-	card := session.deck[0]
-	session.deck = session.deck[1:]
-	session.currentCard = &card
-	session.currentResolved = false
-	session.currentMessageID = 0
-	return card, true
+// NextPrompt dequeues the next card and updates current prompt fields.
+func (m *GameManager) NextPrompt(session *GameSession) (Card, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.nextPromptLocked(session)
 }
 
-// requeueCard appends a card to the end of the session deck.
-func requeueCard(session *GameSession, card Card) {
-	if session == nil {
+// ResolveCorrect marks the current prompt as correct and discards it.
+func (m *GameManager) ResolveCorrect(session *GameSession) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if session == nil || session.currentCard == nil || session.currentResolved {
 		return
 	}
+	session.attemptCount++
+	session.correctCount++
+	session.currentResolved = true
+	session.lastActivityAt = m.now()
+}
+
+// ResolveMissRequeue marks the prompt as missed and requeues it.
+func (m *GameManager) ResolveMissRequeue(session *GameSession) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if session == nil || session.currentCard == nil || session.currentResolved {
+		return
+	}
+	card := *session.currentCard
+	session.attemptCount++
+	session.currentResolved = true
+	session.lastActivityAt = m.now()
 	session.deck = append(session.deck, card)
 }
 
-// finishSession builds the stats payload for a completed game session.
-func finishSession(session *GameSession) string {
+// FinishStats builds the stats payload for a completed game session.
+func (m *GameManager) FinishStats(session *GameSession) string {
 	if session == nil {
 		return "Game over!\nYou got 0 correct answers.\nAccuracy: 0% (0/0)"
 	}
@@ -150,6 +181,24 @@ func finishSession(session *GameSession) string {
 		session.correctCount,
 		session.attemptCount,
 	)
+}
+
+func (m *GameManager) nextPromptLocked(session *GameSession) (Card, bool) {
+	if session == nil || len(session.deck) == 0 {
+		return Card{}, false
+	}
+	card := session.deck[0]
+	session.deck = session.deck[1:]
+	session.currentCard = &card
+	session.currentResolved = false
+	session.currentMessageID = 0
+	session.currentToken = m.nextTokenLocked()
+	return card, true
+}
+
+func (m *GameManager) nextTokenLocked() string {
+	m.tokenCounter++
+	return fmt.Sprintf("p-%d", m.tokenCounter)
 }
 
 func buildCard(pair db.WordPair, direction CardDirection) Card {

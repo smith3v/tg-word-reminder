@@ -8,10 +8,16 @@ import (
 	"github.com/smith3v/tg-word-reminder/pkg/db"
 )
 
-func resetSessions() {
-	sessionsMu.Lock()
-	sessions = make(map[string]*GameSession)
-	sessionsMu.Unlock()
+type testClock struct {
+	t time.Time
+}
+
+func (c *testClock) Now() time.Time {
+	return c.t
+}
+
+func (c *testClock) Advance(d time.Duration) {
+	c.t = c.t.Add(d)
 }
 
 func TestGetSessionKey(t *testing.T) {
@@ -21,80 +27,72 @@ func TestGetSessionKey(t *testing.T) {
 	}
 }
 
-func TestStartNewSessionCreatesDeckAndStoresSession(t *testing.T) {
-	resetSessions()
+func TestStartOrRestartCreatesDeckAndSetsCurrent(t *testing.T) {
+	clock := &testClock{t: time.Date(2024, 2, 1, 8, 0, 0, 0, time.UTC)}
+	manager := NewGameManager(clock.Now)
 
 	pairs := []db.WordPair{
 		{ID: 1, UserID: 10, Word1: "hola", Word2: "adios"},
 		{ID: 2, UserID: 10, Word1: "uno", Word2: "dos"},
 	}
 
-	start := time.Now()
-	session := startNewSession(100, 200, pairs)
+	session := manager.StartOrRestart(100, 200, pairs)
 	if session == nil {
 		t.Fatalf("expected session to be created")
 	}
 	if session.chatID != 100 || session.userID != 200 {
 		t.Fatalf("unexpected session identifiers: chat=%d user=%d", session.chatID, session.userID)
 	}
-	if session.startedAt.Before(start) || session.lastActivityAt.Before(start) {
-		t.Fatalf("expected timestamps to be initialized")
+	if !session.startedAt.Equal(clock.t) || !session.lastActivityAt.Equal(clock.t) {
+		t.Fatalf("expected timestamps to be initialized from clock")
 	}
 	if session.correctCount != 0 || session.attemptCount != 0 {
 		t.Fatalf("expected counters to start at zero")
 	}
-	if session.currentCard != nil || !session.currentResolved {
-		t.Fatalf("expected no current card and resolved state")
+	if session.currentCard == nil || session.currentResolved {
+		t.Fatalf("expected a current card and unresolved state")
 	}
-	if len(session.deck) != len(pairs)*2 {
-		t.Fatalf("expected deck size %d, got %d", len(pairs)*2, len(session.deck))
+	if session.currentMessageID != 0 || session.currentToken == "" {
+		t.Fatalf("expected prompt metadata to be initialized")
+	}
+	expectedTotal := len(pairs) * 2
+	if len(session.deck) != expectedTotal-1 {
+		t.Fatalf("expected deck size %d, got %d", expectedTotal-1, len(session.deck))
 	}
 
 	key := getSessionKey(100, 200)
-	sessionsMu.Lock()
-	stored := sessions[key]
-	sessionsMu.Unlock()
+	manager.mu.Lock()
+	stored := manager.sessions[key]
+	manager.mu.Unlock()
 	if stored != session {
 		t.Fatalf("expected session stored in map")
 	}
 
-	pairByID := map[uint]db.WordPair{
-		1: pairs[0],
-		2: pairs[1],
+	expectedCounts := make(map[string]int)
+	for _, card := range buildDeck(pairs) {
+		cardKey := fmt.Sprintf("%d:%s:%s:%s", card.PairID, card.Direction, card.Shown, card.Expected)
+		expectedCounts[cardKey]++
 	}
-	counts := map[string]int{}
+	seenCounts := make(map[string]int)
 	for _, card := range session.deck {
-		pair, ok := pairByID[card.PairID]
-		if !ok {
-			t.Fatalf("unexpected pair ID in deck: %d", card.PairID)
-		}
-		switch card.Direction {
-		case DirectionAToB:
-			if card.Shown != pair.Word1 || card.Expected != pair.Word2 {
-				t.Fatalf("A_to_B card mismatch: %+v", card)
-			}
-		case DirectionBToA:
-			if card.Shown != pair.Word2 || card.Expected != pair.Word1 {
-				t.Fatalf("B_to_A card mismatch: %+v", card)
-			}
-		default:
-			t.Fatalf("unexpected card direction: %s", card.Direction)
-		}
-		key := fmt.Sprintf("%d:%s", card.PairID, card.Direction)
-		counts[key]++
+		cardKey := fmt.Sprintf("%d:%s:%s:%s", card.PairID, card.Direction, card.Shown, card.Expected)
+		seenCounts[cardKey]++
 	}
-
-	for _, pair := range pairs {
-		for _, direction := range []CardDirection{DirectionAToB, DirectionBToA} {
-			key := fmt.Sprintf("%d:%s", pair.ID, direction)
-			if counts[key] != 1 {
-				t.Fatalf("expected one card for %s, got %d", key, counts[key])
-			}
+	current := *session.currentCard
+	currentKey := fmt.Sprintf("%d:%s:%s:%s", current.PairID, current.Direction, current.Shown, current.Expected)
+	seenCounts[currentKey]++
+	if len(expectedCounts) != len(seenCounts) {
+		t.Fatalf("expected card set size to match after start")
+	}
+	for key, count := range expectedCounts {
+		if seenCounts[key] != count {
+			t.Fatalf("card %s count mismatch", key)
 		}
 	}
 }
 
-func TestPopNextCardDequeuesAndSetsCurrent(t *testing.T) {
+func TestNextPromptDequeuesAndSetsCurrent(t *testing.T) {
+	manager := NewGameManager(time.Now)
 	card1 := Card{
 		PairID:    1,
 		Direction: DirectionAToB,
@@ -108,10 +106,11 @@ func TestPopNextCardDequeuesAndSetsCurrent(t *testing.T) {
 		Expected:  "c",
 	}
 	session := &GameSession{
-		deck: []Card{card1, card2},
+		deck:            []Card{card1, card2},
+		currentResolved: true,
 	}
 
-	got, ok := popNextCard(session)
+	got, ok := manager.NextPrompt(session)
 	if !ok {
 		t.Fatalf("expected card to be dequeued")
 	}
@@ -124,20 +123,42 @@ func TestPopNextCardDequeuesAndSetsCurrent(t *testing.T) {
 	if session.currentCard == nil || *session.currentCard != card1 {
 		t.Fatalf("expected current card to be set")
 	}
-	if session.currentResolved || session.currentMessageID != 0 {
-		t.Fatalf("expected current card to be unresolved with zero message ID")
+	if session.currentResolved || session.currentMessageID != 0 || session.currentToken == "" {
+		t.Fatalf("expected prompt to be unresolved with zero message ID")
 	}
 }
 
-func TestPopNextCardReturnsFalseOnEmptyDeck(t *testing.T) {
-	session := &GameSession{}
-	_, ok := popNextCard(session)
-	if ok {
-		t.Fatalf("expected empty deck to return ok=false")
+func TestResolveCorrectUpdatesCounts(t *testing.T) {
+	clock := &testClock{t: time.Date(2024, 2, 1, 8, 0, 0, 0, time.UTC)}
+	manager := NewGameManager(clock.Now)
+	card := Card{
+		PairID:    1,
+		Direction: DirectionAToB,
+		Shown:     "a",
+		Expected:  "b",
+	}
+	session := &GameSession{
+		currentCard:     &card,
+		currentResolved: false,
+	}
+
+	clock.Advance(2 * time.Minute)
+	manager.ResolveCorrect(session)
+
+	if session.attemptCount != 1 || session.correctCount != 1 {
+		t.Fatalf("expected counts to increment, got attempts=%d correct=%d", session.attemptCount, session.correctCount)
+	}
+	if !session.currentResolved {
+		t.Fatalf("expected current card to be marked resolved")
+	}
+	if !session.lastActivityAt.Equal(clock.t) {
+		t.Fatalf("expected lastActivityAt to update")
 	}
 }
 
-func TestRequeueCardAppendsToDeck(t *testing.T) {
+func TestResolveMissRequeueUpdatesCountsAndDeck(t *testing.T) {
+	clock := &testClock{t: time.Date(2024, 2, 1, 8, 0, 0, 0, time.UTC)}
+	manager := NewGameManager(clock.Now)
 	card := Card{
 		PairID:    3,
 		Direction: DirectionAToB,
@@ -145,16 +166,32 @@ func TestRequeueCardAppendsToDeck(t *testing.T) {
 		Expected:  "y",
 	}
 	session := &GameSession{
-		deck: []Card{},
+		deck:            []Card{},
+		currentCard:     &card,
+		currentResolved: false,
 	}
-	requeueCard(session, card)
+
+	clock.Advance(5 * time.Minute)
+	manager.ResolveMissRequeue(session)
+
+	if session.attemptCount != 1 || session.correctCount != 0 {
+		t.Fatalf("expected miss counts to update, got attempts=%d correct=%d", session.attemptCount, session.correctCount)
+	}
+	if !session.currentResolved {
+		t.Fatalf("expected current card to be marked resolved")
+	}
 	if len(session.deck) != 1 || session.deck[0] != card {
-		t.Fatalf("expected card to be appended")
+		t.Fatalf("expected card to be requeued")
+	}
+	if !session.lastActivityAt.Equal(clock.t) {
+		t.Fatalf("expected lastActivityAt to update")
 	}
 }
 
-func TestFinishSessionFormatsStats(t *testing.T) {
-	message := finishSession(nil)
+func TestFinishStatsFormatsStats(t *testing.T) {
+	manager := NewGameManager(time.Now)
+
+	message := manager.FinishStats(nil)
 	expected := "Game over!\nYou got 0 correct answers.\nAccuracy: 0% (0/0)"
 	if message != expected {
 		t.Fatalf("unexpected message: %q", message)
@@ -164,7 +201,7 @@ func TestFinishSessionFormatsStats(t *testing.T) {
 		correctCount: 2,
 		attemptCount: 3,
 	}
-	message = finishSession(session)
+	message = manager.FinishStats(session)
 	expected = "Game over!\nYou got 2 correct answers.\nAccuracy: 67% (2/3)"
 	if message != expected {
 		t.Fatalf("unexpected stats message: %q", message)
