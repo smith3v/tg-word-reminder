@@ -324,3 +324,24 @@ func TestBuildCardSetsShownAndExpectedByDirection(t *testing.T) {
 		t.Fatalf("expected B_to_A mapping, got %+v", card)
 	}
 }
+
+func TestNormalizeAnswer(t *testing.T) {
+	cases := []struct {
+		input    string
+		expected string
+	}{
+		{"  Hello  ", "hello"},
+		{"Hello   World", "hello world"},
+		{"Hello, ", "hello"},
+		{"Hello!!!", "hello"},
+		{"Hello ! ", "hello"},
+		{"  ", ""},
+	}
+
+	for _, tc := range cases {
+		got := normalizeAnswer(tc.input)
+		if got != tc.expected {
+			t.Fatalf("normalizeAnswer(%q) = %q, want %q", tc.input, got, tc.expected)
+		}
+	}
+}

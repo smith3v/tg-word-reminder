@@ -78,7 +78,8 @@ func getSessionKey(chatID, userID int64) string {
 // StartOrRestart initializes or replaces a session and sets the first prompt.
 func (m *GameManager) StartOrRestart(chatID, userID int64, vocabPairs []db.WordPair) *GameSession {
 	now := m.now()
-	deck := buildDeck(vocabPairs)
+	pairs := samplePairs(vocabPairs, DeckPairs)
+	deck := buildDeck(pairs)
 	shuffleDeck(deck)
 
 	session := &GameSession{
@@ -122,6 +123,19 @@ func buildDeck(pairs []db.WordPair) []Card {
 		deck = append(deck, buildCard(pair, DirectionBToA))
 	}
 	return deck
+}
+
+// samplePairs returns up to limit distinct pairs, choosing randomly when necessary.
+func samplePairs(pairs []db.WordPair, limit int) []db.WordPair {
+	if limit <= 0 || len(pairs) <= limit {
+		return pairs
+	}
+	perm := rand.Perm(len(pairs))
+	selected := make([]db.WordPair, 0, limit)
+	for i := 0; i < limit; i++ {
+		selected = append(selected, pairs[perm[i]])
+	}
+	return selected
 }
 
 // shuffleDeck randomizes card order in place.
@@ -233,5 +247,5 @@ func normalizeAnswer(input string) string {
 			return false
 		}
 	})
-	return trimmed
+	return strings.TrimSpace(trimmed)
 }
