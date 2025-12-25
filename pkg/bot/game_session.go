@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,8 +29,6 @@ const (
 type Card struct {
 	PairID    uint
 	Direction CardDirection
-	Word1     string
-	Word2     string
 	Shown     string
 	Expected  string
 }
@@ -64,14 +63,8 @@ func getSessionKey(chatID, userID int64) string {
 // startNewSession initializes a session with a shuffled deck derived from pairs.
 func startNewSession(chatID, userID int64, pairs []db.WordPair) *GameSession {
 	now := time.Now()
-	deck := make([]Card, 0, len(pairs)*2)
-	for _, pair := range pairs {
-		deck = append(deck, buildCard(pair, DirectionAToB))
-		deck = append(deck, buildCard(pair, DirectionBToA))
-	}
-	rand.Shuffle(len(deck), func(i, j int) {
-		deck[i], deck[j] = deck[j], deck[i]
-	})
+	deck := buildDeck(pairs)
+	shuffleDeck(deck)
 
 	session := &GameSession{
 		chatID:          chatID,
@@ -88,6 +81,36 @@ func startNewSession(chatID, userID int64, pairs []db.WordPair) *GameSession {
 	sessionsMu.Unlock()
 
 	return session
+}
+
+// selectRandomPairs loads up to limit random pairs for the user, matching /getpair's source.
+func selectRandomPairs(userID int64, limit int) ([]db.WordPair, error) {
+	var pairs []db.WordPair
+	query := db.DB.Where("user_id = ?", userID).Order("RANDOM()")
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	if err := query.Find(&pairs).Error; err != nil {
+		return nil, err
+	}
+	return pairs, nil
+}
+
+// buildDeck expands pairs into two-direction cards without shuffling.
+func buildDeck(pairs []db.WordPair) []Card {
+	deck := make([]Card, 0, len(pairs)*2)
+	for _, pair := range pairs {
+		deck = append(deck, buildCard(pair, DirectionAToB))
+		deck = append(deck, buildCard(pair, DirectionBToA))
+	}
+	return deck
+}
+
+// shuffleDeck randomizes card order in place.
+func shuffleDeck(deck []Card) {
+	rand.Shuffle(len(deck), func(i, j int) {
+		deck[i], deck[j] = deck[j], deck[i]
+	})
 }
 
 // popNextCard dequeues the next card and marks it as the current prompt.
@@ -133,8 +156,6 @@ func buildCard(pair db.WordPair, direction CardDirection) Card {
 	card := Card{
 		PairID:    pair.ID,
 		Direction: direction,
-		Word1:     pair.Word1,
-		Word2:     pair.Word2,
 	}
 	switch direction {
 	case DirectionAToB:
@@ -145,4 +166,23 @@ func buildCard(pair db.WordPair, direction CardDirection) Card {
 		card.Expected = pair.Word1
 	}
 	return card
+}
+
+// normalizeAnswer normalizes text for strict comparison.
+func normalizeAnswer(input string) string {
+	trimmed := strings.TrimSpace(input)
+	if trimmed == "" {
+		return ""
+	}
+	trimmed = strings.ToLower(trimmed)
+	trimmed = strings.Join(strings.Fields(trimmed), " ")
+	trimmed = strings.TrimRightFunc(trimmed, func(r rune) bool {
+		switch r {
+		case '.', ',', '!', '?':
+			return true
+		default:
+			return false
+		}
+	})
+	return trimmed
 }
