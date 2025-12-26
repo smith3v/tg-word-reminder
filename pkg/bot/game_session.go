@@ -229,6 +229,16 @@ type attemptResult struct {
 	statsText       string
 }
 
+type revealResult struct {
+	handled         bool
+	notice          string
+	promptMessageID int
+	card            Card
+	nextCard        *Card
+	nextToken       string
+	statsText       string
+}
+
 // ResolveTextAttempt applies a typed answer and advances the session if possible.
 func (m *GameManager) ResolveTextAttempt(chatID, userID int64, userText string) attemptResult {
 	key := getSessionKey(chatID, userID)
@@ -266,6 +276,46 @@ func (m *GameManager) ResolveTextAttempt(chatID, userID int64, userText string) 
 		delete(m.sessions, key)
 		return result
 	}
+
+	card := session.deck[0]
+	session.deck = session.deck[1:]
+	session.currentCard = &card
+	session.currentResolved = false
+	session.currentMessageID = 0
+	session.currentToken = m.nextTokenLocked()
+	result.nextCard = &card
+	result.nextToken = session.currentToken
+
+	return result
+}
+
+// ResolveRevealAttempt validates and applies a reveal callback.
+func (m *GameManager) ResolveRevealAttempt(chatID, userID int64, token string, messageID int) revealResult {
+	key := getSessionKey(chatID, userID)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	session := m.sessions[key]
+	if session == nil {
+		return revealResult{notice: "Not active"}
+	}
+	if session.currentCard == nil || session.currentResolved {
+		return revealResult{notice: "Already resolved"}
+	}
+	if session.currentToken != token || session.currentMessageID != messageID {
+		return revealResult{notice: "Not active"}
+	}
+
+	result := revealResult{
+		handled:         true,
+		promptMessageID: session.currentMessageID,
+		card:            *session.currentCard,
+	}
+
+	session.attemptCount++
+	session.lastActivityAt = m.now()
+	session.currentResolved = true
+	session.deck = append(session.deck, *session.currentCard)
 
 	card := session.deck[0]
 	session.deck = session.deck[1:]

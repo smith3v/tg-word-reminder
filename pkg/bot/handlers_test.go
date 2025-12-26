@@ -354,3 +354,104 @@ func TestHandleGameTextAttemptNextPromptOmitsHint(t *testing.T) {
 		t.Fatalf("expected prompt format with arrow, got %q", got)
 	}
 }
+
+func newTestCallbackUpdate(data string, userID, chatID int64, messageID int) *models.Update {
+	return &models.Update{
+		CallbackQuery: &models.CallbackQuery{
+			ID:   "callback-1",
+			From: models.User{ID: userID},
+			Data: data,
+			Message: models.MaybeInaccessibleMessage{
+				Type: models.MaybeInaccessibleMessageTypeMessage,
+				Message: &models.Message{
+					ID: messageID,
+					Chat: models.Chat{
+						ID:   chatID,
+						Type: models.ChatTypePrivate,
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestHandleGameCallbackIgnoresStaleToken(t *testing.T) {
+	logger.SetLogLevel(logger.ERROR)
+	resetGameManager(time.Now)
+
+	current := Card{PairID: 1, Direction: DirectionAToB, Shown: "hola", Expected: "adios"}
+	session := &GameSession{
+		chatID:           2001,
+		userID:           2001,
+		currentCard:      &current,
+		currentMessageID: 44,
+		currentResolved:  false,
+		currentToken:     "good",
+	}
+	key := getSessionKey(2001, 2001)
+	gameManager.mu.Lock()
+	gameManager.sessions[key] = session
+	gameManager.mu.Unlock()
+
+	client := newMockClient()
+	b := newTestTelegramBot(t, client)
+	update := newTestCallbackUpdate("g:r:bad", 2001, 2001, 44)
+
+	HandleGameCallback(context.Background(), b, update)
+
+	if len(client.requests) == 0 {
+		t.Fatalf("expected callback answer request")
+	}
+	for _, req := range client.requests {
+		if strings.Contains(req.path, "editMessageText") {
+			t.Fatalf("did not expect editMessageText on stale callback")
+		}
+	}
+	if session.attemptCount != 0 {
+		t.Fatalf("expected no attempts recorded for stale callback")
+	}
+}
+
+func TestHandleGameCallbackRevealRequeuesAndEdits(t *testing.T) {
+	logger.SetLogLevel(logger.ERROR)
+	resetGameManager(time.Now)
+
+	current := Card{PairID: 1, Direction: DirectionAToB, Shown: "hola", Expected: "adios"}
+	next := Card{PairID: 2, Direction: DirectionBToA, Shown: "uno", Expected: "one"}
+	session := &GameSession{
+		chatID:           2002,
+		userID:           2002,
+		currentCard:      &current,
+		currentMessageID: 55,
+		currentResolved:  false,
+		currentToken:     "token",
+		deck:             []Card{next},
+	}
+	key := getSessionKey(2002, 2002)
+	gameManager.mu.Lock()
+	gameManager.sessions[key] = session
+	gameManager.mu.Unlock()
+
+	client := newMockClient()
+	client.response = `{"ok":true,"result":{"message_id":99}}`
+	b := newTestTelegramBot(t, client)
+	update := newTestCallbackUpdate("g:r:token", 2002, 2002, 55)
+
+	HandleGameCallback(context.Background(), b, update)
+
+	updated := gameManager.GetSession(2002, 2002)
+	if updated == nil {
+		t.Fatalf("expected session to remain active")
+	}
+	if updated.attemptCount != 1 || updated.correctCount != 0 {
+		t.Fatalf("expected attempt count to increment, got attempts=%d correct=%d", updated.attemptCount, updated.correctCount)
+	}
+	if len(updated.deck) != 1 || updated.deck[0] != current {
+		t.Fatalf("expected current card to be requeued, got %+v", updated.deck)
+	}
+
+	body := client.lastRequestBody(t)
+	if !strings.Contains(body, "👀") {
+		t.Fatalf("expected reveal marker in edit text")
+	}
+}

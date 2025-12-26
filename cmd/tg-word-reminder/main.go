@@ -40,6 +40,7 @@ func main() {
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/getpair", bot.MatchTypeExact, reminderBot.HandleGetPair)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/game", bot.MatchTypeExact, reminderBot.HandleGameStart)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "s:", bot.MatchTypePrefix, reminderBot.HandleSettingsCallback)
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "g:r:", bot.MatchTypePrefix, reminderBot.HandleGameCallback)
 
 	go reminderBot.StartPeriodicMessages(ctx, b)
 
