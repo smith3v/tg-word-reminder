@@ -160,6 +160,7 @@ To avoid frustrating “almost correct” mismatches while staying deterministic
 - `strings.ToLower` (or Unicode-aware case fold)
 - Collapse multiple spaces to one
 - Ignore trailing punctuation like `.`, `!`, `?`, `,`
+- If the expected answer contains commas, treat each comma-separated option as an acceptable answer (e.g., `casa, hogar` accepts either).
 
 **Explicitly out of scope (v1):**
 

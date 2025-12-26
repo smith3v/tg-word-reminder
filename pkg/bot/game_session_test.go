@@ -484,6 +484,25 @@ func TestResolveTextAttemptIncorrectRequeues(t *testing.T) {
 	}
 }
 
+func TestResolveTextAttemptAcceptsCommaOptions(t *testing.T) {
+	manager := NewGameManager(time.Now)
+	current := Card{PairID: 1, Direction: DirectionAToB, Shown: "hola", Expected: "adios, hasta luego"}
+	session := &GameSession{
+		chatID:           7,
+		userID:           8,
+		currentCard:      &current,
+		currentMessageID: 33,
+		currentResolved:  false,
+		deck:             []Card{},
+	}
+	manager.sessions[getSessionKey(7, 8)] = session
+
+	result := manager.ResolveTextAttempt(7, 8, " Hasta luego ")
+	if !result.handled || !result.correct {
+		t.Fatalf("expected comma option to be accepted, got %+v", result)
+	}
+}
+
 func TestResolveTextAttemptFinishesOnEmptyDeck(t *testing.T) {
 	manager := NewGameManager(time.Now)
 	current := Card{PairID: 1, Direction: DirectionAToB, Shown: "hola", Expected: "adios"}

@@ -299,9 +299,7 @@ func (m *GameManager) ResolveTextAttempt(chatID, userID int64, userText string) 
 		card:            *session.currentCard,
 	}
 
-	normalizedUser := normalizeAnswer(userText)
-	normalizedExpected := normalizeAnswer(session.currentCard.Expected)
-	result.correct = normalizedUser == normalizedExpected
+	result.correct = matchesExpected(userText, session.currentCard.Expected)
 
 	session.attemptCount++
 	if result.correct {
@@ -465,4 +463,22 @@ func normalizeAnswer(input string) string {
 		}
 	})
 	return strings.TrimSpace(trimmed)
+}
+
+func matchesExpected(userText, expected string) bool {
+	normalizedUser := normalizeAnswer(userText)
+	if normalizedUser == "" {
+		return false
+	}
+	options := strings.Split(expected, ",")
+	for _, option := range options {
+		normalizedOption := normalizeAnswer(option)
+		if normalizedOption == "" {
+			continue
+		}
+		if normalizedUser == normalizedOption {
+			return true
+		}
+	}
+	return false
 }
