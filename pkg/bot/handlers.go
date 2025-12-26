@@ -33,8 +33,8 @@ func DefaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	// Check if the message contains a document (file)
 	if update.Message.Document == nil {
 		_, err := b.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID: update.Message.Chat.ID,
-			Text:   "Type /start to initialize the bot\\, /getpair to get a random pair\\, /settings to configure your preferences\\, or /clear to clean up your vocabulary\\.\n\nIf you attach a CSV file here\\, I\\'ll upload the word pairs to your account\\. Please refer to [the example](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/example.csv) for a file format\\, or to [Dutch\\-English vocabulary example](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/dutch-english.csv)\\.",
+			ChatID:    update.Message.Chat.ID,
+			Text:      "Type /start to initialize the bot\\, /getpair to get a random pair\\, /settings to configure your preferences\\, or /clear to clean up your vocabulary\\.\n\nIf you attach a CSV file here\\, I\\'ll upload the word pairs to your account\\. Please refer to [the example](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/example.csv) for a file format\\, or to [Dutch\\-English vocabulary example](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/dutch-english.csv)\\.",
 			ParseMode: models.ParseModeMarkdown,
 		})
 		if err != nil {
@@ -375,4 +375,68 @@ func HandleGetPair(ctx context.Context, b *bot.Bot, update *models.Update) {
 	if err != nil {
 		logger.Error("failed to send random word pair message", "user_id", update.Message.From.ID, "error", err)
 	}
+}
+
+func HandleGameStart(ctx context.Context, b *bot.Bot, update *models.Update) {
+	if update == nil || update.Message == nil || update.Message.From == nil || update.Message.Chat.ID == 0 {
+		logger.Error("invalid update in HandleGameStart")
+		return
+	}
+	if update.Message.Chat.Type != models.ChatTypePrivate {
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "The /game command works only in private chat.",
+		})
+		return
+	}
+
+	pairs, err := selectRandomPairs(update.Message.From.ID, DeckPairs)
+	if err != nil {
+		logger.Error("failed to fetch word pairs for game", "user_id", update.Message.From.ID, "error", err)
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "Failed to start the game. Please try again later.",
+		})
+		return
+	}
+	if len(pairs) == 0 {
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "You have no word pairs saved. Please upload some word pairs first.",
+		})
+		return
+	}
+
+	session := gameManager.StartOrRestart(update.Message.Chat.ID, update.Message.From.ID, pairs)
+	if session.currentCard == nil {
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "No word pairs are available to start a game.",
+		})
+		return
+	}
+
+	prompt := fmt.Sprintf("%s → ?\n(reply with the missing word, or tap 👀 to reveal — counts as a miss)", session.currentCard.Shown)
+	callbackData := fmt.Sprintf("g:r:%s", session.currentToken)
+	keyboard := &models.InlineKeyboardMarkup{
+		InlineKeyboard: [][]models.InlineKeyboardButton{
+			{
+				{
+					Text:         "👀",
+					CallbackData: callbackData,
+				},
+			},
+		},
+	}
+
+	msg, err := b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:      update.Message.Chat.ID,
+		Text:        prompt,
+		ReplyMarkup: keyboard,
+	})
+	if err != nil {
+		logger.Error("failed to send game prompt", "user_id", update.Message.From.ID, "error", err)
+		return
+	}
+	gameManager.SetCurrentMessageID(session, msg.ID)
 }

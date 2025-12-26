@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -53,10 +54,9 @@ type GameSession struct {
 
 // GameManager manages active game sessions with thread-safe access.
 type GameManager struct {
-	mu           sync.Mutex
-	sessions     map[string]*GameSession
-	now          func() time.Time
-	tokenCounter int64
+	mu       sync.Mutex
+	sessions map[string]*GameSession
+	now      func() time.Time
 }
 
 // NewGameManager initializes a manager with an injectable clock.
@@ -69,6 +69,8 @@ func NewGameManager(now func() time.Time) *GameManager {
 		now:      now,
 	}
 }
+
+var gameManager = NewGameManager(nil)
 
 // getSessionKey builds the map key for a user's active game session.
 func getSessionKey(chatID, userID int64) string {
@@ -197,6 +199,16 @@ func (m *GameManager) FinishStats(session *GameSession) string {
 	)
 }
 
+// SetCurrentMessageID stores the Telegram message ID for the current prompt.
+func (m *GameManager) SetCurrentMessageID(session *GameSession, messageID int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if session == nil {
+		return
+	}
+	session.currentMessageID = messageID
+}
+
 func (m *GameManager) nextPromptLocked(session *GameSession) (Card, bool) {
 	if session == nil || len(session.deck) == 0 {
 		return Card{}, false
@@ -211,8 +223,7 @@ func (m *GameManager) nextPromptLocked(session *GameSession) (Card, bool) {
 }
 
 func (m *GameManager) nextTokenLocked() string {
-	m.tokenCounter++
-	return fmt.Sprintf("p-%d", m.tokenCounter)
+	return strconv.FormatInt(rand.Int63(), 36)
 }
 
 func buildCard(pair db.WordPair, direction CardDirection) Card {

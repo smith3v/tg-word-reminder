@@ -15,6 +15,7 @@ import (
 	telegram "github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/smith3v/tg-word-reminder/pkg/logger"
+	"github.com/smith3v/tg-word-reminder/pkg/ui"
 
 	dbpkg "github.com/smith3v/tg-word-reminder/pkg/db"
 	"gorm.io/driver/sqlite"
@@ -98,6 +99,14 @@ func (m *mockClient) lastMessageText(t *testing.T) string {
 	return ""
 }
 
+func (m *mockClient) lastRequestBody(t *testing.T) string {
+	t.Helper()
+	if len(m.requests) == 0 {
+		t.Fatalf("expected at least one recorded request")
+	}
+	return string(m.requests[len(m.requests)-1].body)
+}
+
 func setupTestDB(t *testing.T) {
 	t.Helper()
 	gdb, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
@@ -147,6 +156,10 @@ func newTestUpdate(text string, userID int64) *models.Update {
 			Text: text,
 		},
 	}
+}
+
+func resetGameManager(now func() time.Time) {
+	gameManager = NewGameManager(now)
 }
 
 func TestHandleGetPairWithoutWords(t *testing.T) {
@@ -219,5 +232,86 @@ func TestHandleClearRemovesWordPairs(t *testing.T) {
 	got := client.lastMessageText(t)
 	if !strings.Contains(got, "has been cleared") {
 		t.Fatalf("expected confirmation message, got %q", got)
+	}
+}
+
+func TestHandleGameStartRejectsNonPrivateChat(t *testing.T) {
+	setupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+	resetGameManager(time.Now)
+
+	client := newMockClient()
+	b := newTestTelegramBot(t, client)
+	update := newTestUpdate("/game", 707)
+	update.Message.Chat.Type = models.ChatTypeGroup
+
+	HandleGameStart(context.Background(), b, update)
+
+	got := client.lastMessageText(t)
+	if !strings.Contains(got, "only in private chat") {
+		t.Fatalf("expected private chat warning, got %q", got)
+	}
+}
+
+func TestHandleGameStartWithEmptyVocabulary(t *testing.T) {
+	setupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+	resetGameManager(time.Now)
+
+	client := newMockClient()
+	b := newTestTelegramBot(t, client)
+	update := newTestUpdate("/game", 808)
+	update.Message.Chat.Type = models.ChatTypePrivate
+
+	HandleGameStart(context.Background(), b, update)
+
+	got := client.lastMessageText(t)
+	if !strings.Contains(got, "You have no word pairs saved") {
+		t.Fatalf("expected empty vocabulary message, got %q", got)
+	}
+}
+
+func TestHandleGameStartSendsPromptWithCallback(t *testing.T) {
+	setupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+	resetGameManager(time.Now)
+
+	if err := dbpkg.DB.Create(&dbpkg.WordPair{
+		UserID: 909,
+		Word1:  "Hola",
+		Word2:  "Adios",
+	}).Error; err != nil {
+		t.Fatalf("failed to seed word pair: %v", err)
+	}
+
+	client := newMockClient()
+	client.response = `{"ok":true,"result":{"message_id":42}}`
+	b := newTestTelegramBot(t, client)
+	update := newTestUpdate("/game", 909)
+	update.Message.Chat.Type = models.ChatTypePrivate
+
+	HandleGameStart(context.Background(), b, update)
+
+	got := client.lastMessageText(t)
+	if !strings.Contains(got, "→ ?") {
+		t.Fatalf("expected prompt format with arrow, got %q", got)
+	}
+	if !strings.Contains(got, "(reply with the missing word, or tap") {
+		t.Fatalf("expected prompt hint, got %q", got)
+	}
+
+	body := client.lastRequestBody(t)
+	idx := strings.Index(body, "g:r:")
+	if idx == -1 {
+		t.Fatalf("expected callback_data with g:r: prefix")
+	}
+	token := body[idx:]
+	end := strings.Index(token, "\"")
+	if end == -1 {
+		t.Fatalf("expected closing quote for callback_data")
+	}
+	callback := token[:end]
+	if len(callback) > ui.MaxCallbackDataLen {
+		t.Fatalf("callback_data too long: %d", len(callback))
 	}
 }
