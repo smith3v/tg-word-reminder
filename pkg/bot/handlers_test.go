@@ -15,6 +15,7 @@ import (
 	telegram "github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/smith3v/tg-word-reminder/pkg/logger"
+	"github.com/smith3v/tg-word-reminder/pkg/ui"
 
 	dbpkg "github.com/smith3v/tg-word-reminder/pkg/db"
 	"gorm.io/driver/sqlite"
@@ -98,6 +99,14 @@ func (m *mockClient) lastMessageText(t *testing.T) string {
 	return ""
 }
 
+func (m *mockClient) lastRequestBody(t *testing.T) string {
+	t.Helper()
+	if len(m.requests) == 0 {
+		t.Fatalf("expected at least one recorded request")
+	}
+	return string(m.requests[len(m.requests)-1].body)
+}
+
 func setupTestDB(t *testing.T) {
 	t.Helper()
 	gdb, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
@@ -147,6 +156,10 @@ func newTestUpdate(text string, userID int64) *models.Update {
 			Text: text,
 		},
 	}
+}
+
+func resetGameManager(now func() time.Time) {
+	gameManager = NewGameManager(now)
 }
 
 func TestHandleGetPairWithoutWords(t *testing.T) {
@@ -219,5 +232,238 @@ func TestHandleClearRemovesWordPairs(t *testing.T) {
 	got := client.lastMessageText(t)
 	if !strings.Contains(got, "has been cleared") {
 		t.Fatalf("expected confirmation message, got %q", got)
+	}
+}
+
+func TestHandleGameStartRejectsNonPrivateChat(t *testing.T) {
+	setupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+	resetGameManager(time.Now)
+
+	client := newMockClient()
+	b := newTestTelegramBot(t, client)
+	update := newTestUpdate("/game", 707)
+	update.Message.Chat.Type = models.ChatTypeGroup
+
+	HandleGameStart(context.Background(), b, update)
+
+	got := client.lastMessageText(t)
+	if !strings.Contains(got, "only in private chat") {
+		t.Fatalf("expected private chat warning, got %q", got)
+	}
+}
+
+func TestHandleGameStartWithEmptyVocabulary(t *testing.T) {
+	setupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+	resetGameManager(time.Now)
+
+	client := newMockClient()
+	b := newTestTelegramBot(t, client)
+	update := newTestUpdate("/game", 808)
+	update.Message.Chat.Type = models.ChatTypePrivate
+
+	HandleGameStart(context.Background(), b, update)
+
+	got := client.lastMessageText(t)
+	if !strings.Contains(got, "You have no word pairs saved") {
+		t.Fatalf("expected empty vocabulary message, got %q", got)
+	}
+}
+
+func TestHandleGameStartSendsPromptWithCallback(t *testing.T) {
+	setupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+	resetGameManager(time.Now)
+
+	if err := dbpkg.DB.Create(&dbpkg.WordPair{
+		UserID: 909,
+		Word1:  "Hola",
+		Word2:  "Adios",
+	}).Error; err != nil {
+		t.Fatalf("failed to seed word pair: %v", err)
+	}
+
+	client := newMockClient()
+	client.response = `{"ok":true,"result":{"message_id":42}}`
+	b := newTestTelegramBot(t, client)
+	update := newTestUpdate("/game", 909)
+	update.Message.Chat.Type = models.ChatTypePrivate
+
+	HandleGameStart(context.Background(), b, update)
+
+	got := client.lastMessageText(t)
+	if !strings.Contains(got, "→ ?") {
+		t.Fatalf("expected prompt format with arrow, got %q", got)
+	}
+	if !strings.Contains(got, "(reply with the missing word, or tap") {
+		t.Fatalf("expected prompt hint, got %q", got)
+	}
+
+	body := client.lastRequestBody(t)
+	idx := strings.Index(body, "g:r:")
+	if idx == -1 {
+		t.Fatalf("expected callback_data with g:r: prefix")
+	}
+	token := body[idx:]
+	end := strings.Index(token, "\"")
+	if end == -1 {
+		t.Fatalf("expected closing quote for callback_data")
+	}
+	callback := token[:end]
+	if len(callback) > ui.MaxCallbackDataLen {
+		t.Fatalf("callback_data too long: %d", len(callback))
+	}
+}
+
+func TestHandleGameTextAttemptNextPromptOmitsHint(t *testing.T) {
+	logger.SetLogLevel(logger.ERROR)
+	resetGameManager(time.Now)
+
+	current := Card{PairID: 1, Direction: DirectionAToB, Shown: "hola", Expected: "adios"}
+	next := Card{PairID: 2, Direction: DirectionBToA, Shown: "uno", Expected: "one"}
+	session := &GameSession{
+		chatID:           1001,
+		userID:           1001,
+		currentCard:      &current,
+		currentMessageID: 777,
+		currentResolved:  false,
+		deck:             []Card{next},
+	}
+	key := getSessionKey(1001, 1001)
+	gameManager.mu.Lock()
+	gameManager.sessions[key] = session
+	gameManager.mu.Unlock()
+
+	client := newMockClient()
+	client.response = `{"ok":true,"result":{"message_id":55}}`
+	b := newTestTelegramBot(t, client)
+	update := newTestUpdate("adios", 1001)
+	update.Message.Chat.Type = models.ChatTypePrivate
+
+	handled := handleGameTextAttempt(context.Background(), b, update)
+	if !handled {
+		t.Fatalf("expected attempt to be handled")
+	}
+
+	got := client.lastMessageText(t)
+	if strings.Contains(got, "reply with the missing word") {
+		t.Fatalf("expected hint to be omitted, got %q", got)
+	}
+	if !strings.Contains(got, "→ ?") {
+		t.Fatalf("expected prompt format with arrow, got %q", got)
+	}
+}
+
+func newTestCallbackUpdate(data string, userID, chatID int64, messageID int) *models.Update {
+	return &models.Update{
+		CallbackQuery: &models.CallbackQuery{
+			ID:   "callback-1",
+			From: models.User{ID: userID},
+			Data: data,
+			Message: models.MaybeInaccessibleMessage{
+				Type: models.MaybeInaccessibleMessageTypeMessage,
+				Message: &models.Message{
+					ID: messageID,
+					Chat: models.Chat{
+						ID:   chatID,
+						Type: models.ChatTypePrivate,
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestHandleGameCallbackIgnoresStaleToken(t *testing.T) {
+	logger.SetLogLevel(logger.ERROR)
+	resetGameManager(time.Now)
+
+	current := Card{PairID: 1, Direction: DirectionAToB, Shown: "hola", Expected: "adios"}
+	session := &GameSession{
+		chatID:           2001,
+		userID:           2001,
+		currentCard:      &current,
+		currentMessageID: 44,
+		currentResolved:  false,
+		currentToken:     "good",
+	}
+	key := getSessionKey(2001, 2001)
+	gameManager.mu.Lock()
+	gameManager.sessions[key] = session
+	gameManager.mu.Unlock()
+
+	client := newMockClient()
+	b := newTestTelegramBot(t, client)
+	update := newTestCallbackUpdate("g:r:bad", 2001, 2001, 44)
+
+	HandleGameCallback(context.Background(), b, update)
+
+	if len(client.requests) == 0 {
+		t.Fatalf("expected callback answer request")
+	}
+	for _, req := range client.requests {
+		if strings.Contains(req.path, "editMessageText") {
+			t.Fatalf("did not expect editMessageText on stale callback")
+		}
+	}
+	if session.attemptCount != 0 {
+		t.Fatalf("expected no attempts recorded for stale callback")
+	}
+}
+
+func TestHandleGameCallbackRevealRequeuesAndEdits(t *testing.T) {
+	logger.SetLogLevel(logger.ERROR)
+	resetGameManager(time.Now)
+
+	current := Card{PairID: 1, Direction: DirectionAToB, Shown: "hola", Expected: "adios"}
+	next := Card{PairID: 2, Direction: DirectionBToA, Shown: "uno", Expected: "one"}
+	session := &GameSession{
+		chatID:           2002,
+		userID:           2002,
+		currentCard:      &current,
+		currentMessageID: 55,
+		currentResolved:  false,
+		currentToken:     "token",
+		deck:             []Card{next},
+	}
+	key := getSessionKey(2002, 2002)
+	gameManager.mu.Lock()
+	gameManager.sessions[key] = session
+	gameManager.mu.Unlock()
+
+	client := newMockClient()
+	client.response = `{"ok":true,"result":{"message_id":99}}`
+	b := newTestTelegramBot(t, client)
+	update := newTestCallbackUpdate("g:r:token", 2002, 2002, 55)
+
+	HandleGameCallback(context.Background(), b, update)
+
+	updated := gameManager.GetSession(2002, 2002)
+	if updated == nil {
+		t.Fatalf("expected session to remain active")
+	}
+	if updated.attemptCount != 1 || updated.correctCount != 0 {
+		t.Fatalf("expected attempt count to increment, got attempts=%d correct=%d", updated.attemptCount, updated.correctCount)
+	}
+	if len(updated.deck) != 1 || updated.deck[0] != current {
+		t.Fatalf("expected current card to be requeued, got %+v", updated.deck)
+	}
+
+	body := client.lastRequestBody(t)
+	if !strings.Contains(body, "👀") {
+		t.Fatalf("expected reveal marker in edit text")
+	}
+}
+
+func TestFormatGameRevealTextAddsSpoilerAndEscapes(t *testing.T) {
+	card := Card{
+		Shown:    "hello_world",
+		Expected: "word[1]",
+	}
+	got := formatGameRevealText(card, "✅")
+	expected := "hello\\_world — ||word\\[1\\]|| ✅"
+	if got != expected {
+		t.Fatalf("expected %q, got %q", expected, got)
 	}
 }

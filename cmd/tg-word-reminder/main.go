@@ -15,6 +15,18 @@ import (
 
 var logger = slog.Default()
 
+type botSender struct {
+	b *bot.Bot
+}
+
+func (s botSender) SendMessage(ctx context.Context, chatID int64, text string) error {
+	_, err := s.b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID: chatID,
+		Text:   text,
+	})
+	return err
+}
+
 func main() {
 	config.LoadConfig("config.json")
 	if err := db.InitDB(config.AppConfig.Database); err != nil {
@@ -38,9 +50,12 @@ func main() {
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/settings", bot.MatchTypeExact, reminderBot.HandleSettings)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/clear", bot.MatchTypeExact, reminderBot.HandleClear)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/getpair", bot.MatchTypeExact, reminderBot.HandleGetPair)
+	b.RegisterHandler(bot.HandlerTypeMessageText, "/game", bot.MatchTypeExact, reminderBot.HandleGameStart)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "s:", bot.MatchTypePrefix, reminderBot.HandleSettingsCallback)
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "g:r:", bot.MatchTypePrefix, reminderBot.HandleGameCallback)
 
 	go reminderBot.StartPeriodicMessages(ctx, b)
+	go reminderBot.StartGameSweeper(ctx, botSender{b: b})
 
 	logger.Info("Starting bot...")
 	b.Start(ctx)
