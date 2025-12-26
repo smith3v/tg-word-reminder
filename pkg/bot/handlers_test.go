@@ -315,3 +315,42 @@ func TestHandleGameStartSendsPromptWithCallback(t *testing.T) {
 		t.Fatalf("callback_data too long: %d", len(callback))
 	}
 }
+
+func TestHandleGameTextAttemptNextPromptOmitsHint(t *testing.T) {
+	logger.SetLogLevel(logger.ERROR)
+	resetGameManager(time.Now)
+
+	current := Card{PairID: 1, Direction: DirectionAToB, Shown: "hola", Expected: "adios"}
+	next := Card{PairID: 2, Direction: DirectionBToA, Shown: "uno", Expected: "one"}
+	session := &GameSession{
+		chatID:           1001,
+		userID:           1001,
+		currentCard:      &current,
+		currentMessageID: 777,
+		currentResolved:  false,
+		deck:             []Card{next},
+	}
+	key := getSessionKey(1001, 1001)
+	gameManager.mu.Lock()
+	gameManager.sessions[key] = session
+	gameManager.mu.Unlock()
+
+	client := newMockClient()
+	client.response = `{"ok":true,"result":{"message_id":55}}`
+	b := newTestTelegramBot(t, client)
+	update := newTestUpdate("adios", 1001)
+	update.Message.Chat.Type = models.ChatTypePrivate
+
+	handled := handleGameTextAttempt(context.Background(), b, update)
+	if !handled {
+		t.Fatalf("expected attempt to be handled")
+	}
+
+	got := client.lastMessageText(t)
+	if strings.Contains(got, "reply with the missing word") {
+		t.Fatalf("expected hint to be omitted, got %q", got)
+	}
+	if !strings.Contains(got, "→ ?") {
+		t.Fatalf("expected prompt format with arrow, got %q", got)
+	}
+}

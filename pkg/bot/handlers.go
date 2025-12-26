@@ -32,6 +32,11 @@ func DefaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 
 	// Check if the message contains a document (file)
 	if update.Message.Document == nil {
+		if update.Message.Text != "" {
+			if handled := handleGameTextAttempt(ctx, b, update); handled {
+				return
+			}
+		}
 		_, err := b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID:    update.Message.Chat.ID,
 			Text:      "Type /start to initialize the bot\\, /getpair to get a random pair\\, /settings to configure your preferences\\, or /clear to clean up your vocabulary\\.\n\nIf you attach a CSV file here\\, I\\'ll upload the word pairs to your account\\. Please refer to [the example](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/example.csv) for a file format\\, or to [Dutch\\-English vocabulary example](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/dutch-english.csv)\\.",
@@ -416,8 +421,88 @@ func HandleGameStart(ctx context.Context, b *bot.Bot, update *models.Update) {
 		return
 	}
 
-	prompt := fmt.Sprintf("%s → ?\n(reply with the missing word, or tap 👀 to reveal — counts as a miss)", session.currentCard.Shown)
-	callbackData := fmt.Sprintf("g:r:%s", session.currentToken)
+	msg, err := sendGamePrompt(ctx, b, update.Message.Chat.ID, session.currentCard, session.currentToken, true)
+	if err != nil {
+		logger.Error("failed to send game prompt", "user_id", update.Message.From.ID, "error", err)
+		return
+	}
+	gameManager.SetCurrentMessageID(session, msg.ID)
+}
+
+func handleGameTextAttempt(ctx context.Context, b *bot.Bot, update *models.Update) bool {
+	if update == nil || update.Message == nil || update.Message.From == nil || update.Message.Chat.ID == 0 {
+		return false
+	}
+	text := strings.TrimSpace(update.Message.Text)
+	if text == "" {
+		return false
+	}
+	if strings.HasPrefix(text, "/game") {
+		HandleGameStart(ctx, b, update)
+		return true
+	}
+
+	chatID := update.Message.Chat.ID
+	userID := update.Message.From.ID
+	session := gameManager.GetSession(chatID, userID)
+	if strings.HasPrefix(text, "/") {
+		return session != nil
+	}
+	if session == nil {
+		return false
+	}
+
+	result := gameManager.ResolveTextAttempt(chatID, userID, text)
+	if !result.handled {
+		return true
+	}
+
+	revealSuffix := "❌"
+	if result.correct {
+		revealSuffix = "✅"
+	}
+	revealText := fmt.Sprintf("%s — %s %s", result.card.Shown, result.card.Expected, revealSuffix)
+	_, err := b.EditMessageText(ctx, &bot.EditMessageTextParams{
+		ChatID:    chatID,
+		MessageID: result.promptMessageID,
+		Text:      revealText,
+		ReplyMarkup: &models.InlineKeyboardMarkup{
+			InlineKeyboard: [][]models.InlineKeyboardButton{},
+		},
+	})
+	if err != nil {
+		logger.Error("failed to edit game prompt", "user_id", userID, "error", err)
+	}
+
+	if result.statsText != "" {
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: chatID,
+			Text:   result.statsText,
+		})
+		return true
+	}
+
+	if result.nextCard != nil {
+		msg, err := sendGamePrompt(ctx, b, chatID, result.nextCard, result.nextToken, false)
+		if err != nil {
+			logger.Error("failed to send next game prompt", "user_id", userID, "error", err)
+			return true
+		}
+		gameManager.SetCurrentMessageIDForToken(chatID, userID, result.nextToken, msg.ID)
+	}
+
+	return true
+}
+
+func sendGamePrompt(ctx context.Context, b *bot.Bot, chatID int64, card *Card, token string, includeHint bool) (*models.Message, error) {
+	if card == nil {
+		return nil, fmt.Errorf("missing card")
+	}
+	prompt := fmt.Sprintf("%s → ?", card.Shown)
+	if includeHint {
+		prompt = fmt.Sprintf("%s\n(reply with the missing word, or tap 👀 to reveal — counts as a miss)", prompt)
+	}
+	callbackData := fmt.Sprintf("g:r:%s", token)
 	keyboard := &models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{
 			{
@@ -428,15 +513,9 @@ func HandleGameStart(ctx context.Context, b *bot.Bot, update *models.Update) {
 			},
 		},
 	}
-
-	msg, err := b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID:      update.Message.Chat.ID,
+	return b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:      chatID,
 		Text:        prompt,
 		ReplyMarkup: keyboard,
 	})
-	if err != nil {
-		logger.Error("failed to send game prompt", "user_id", update.Message.From.ID, "error", err)
-		return
-	}
-	gameManager.SetCurrentMessageID(session, msg.ID)
 }

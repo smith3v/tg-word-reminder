@@ -325,6 +325,113 @@ func TestBuildCardSetsShownAndExpectedByDirection(t *testing.T) {
 	}
 }
 
+func TestResolveTextAttemptCorrectDiscards(t *testing.T) {
+	clock := &testClock{t: time.Date(2024, 2, 1, 9, 0, 0, 0, time.UTC)}
+	manager := NewGameManager(clock.Now)
+
+	current := Card{PairID: 1, Direction: DirectionAToB, Shown: "hola", Expected: "adios"}
+	next := Card{PairID: 2, Direction: DirectionBToA, Shown: "uno", Expected: "one"}
+	last := Card{PairID: 3, Direction: DirectionAToB, Shown: "dos", Expected: "two"}
+
+	session := &GameSession{
+		chatID:           1,
+		userID:           2,
+		currentCard:      &current,
+		currentMessageID: 10,
+		currentResolved:  false,
+		deck:             []Card{next, last},
+	}
+	manager.sessions[getSessionKey(1, 2)] = session
+
+	clock.Advance(30 * time.Second)
+	result := manager.ResolveTextAttempt(1, 2, "  Adios ")
+	if !result.handled || !result.correct {
+		t.Fatalf("expected handled correct result, got %+v", result)
+	}
+	if result.promptMessageID != 10 {
+		t.Fatalf("expected prompt message ID 10, got %d", result.promptMessageID)
+	}
+	if result.nextCard == nil || *result.nextCard != next {
+		t.Fatalf("expected next card to be dequeued")
+	}
+
+	updated := manager.GetSession(1, 2)
+	if updated == nil {
+		t.Fatalf("expected session to remain active")
+	}
+	if updated.attemptCount != 1 || updated.correctCount != 1 {
+		t.Fatalf("expected counts to increment, got attempts=%d correct=%d", updated.attemptCount, updated.correctCount)
+	}
+	if !updated.lastActivityAt.Equal(clock.t) {
+		t.Fatalf("expected lastActivityAt to update")
+	}
+	if len(updated.deck) != 1 || updated.deck[0] != last {
+		t.Fatalf("expected one remaining card after dequeuing, got %+v", updated.deck)
+	}
+}
+
+func TestResolveTextAttemptIncorrectRequeues(t *testing.T) {
+	clock := &testClock{t: time.Date(2024, 2, 1, 9, 0, 0, 0, time.UTC)}
+	manager := NewGameManager(clock.Now)
+
+	current := Card{PairID: 1, Direction: DirectionAToB, Shown: "hola", Expected: "adios"}
+	next := Card{PairID: 2, Direction: DirectionBToA, Shown: "uno", Expected: "one"}
+
+	session := &GameSession{
+		chatID:           3,
+		userID:           4,
+		currentCard:      &current,
+		currentMessageID: 22,
+		currentResolved:  false,
+		deck:             []Card{next},
+	}
+	manager.sessions[getSessionKey(3, 4)] = session
+
+	result := manager.ResolveTextAttempt(3, 4, "nope")
+	if !result.handled || result.correct {
+		t.Fatalf("expected handled incorrect result, got %+v", result)
+	}
+	if result.nextCard == nil || *result.nextCard != next {
+		t.Fatalf("expected next card to be dequeued")
+	}
+
+	updated := manager.GetSession(3, 4)
+	if updated == nil {
+		t.Fatalf("expected session to remain active")
+	}
+	if updated.attemptCount != 1 || updated.correctCount != 0 {
+		t.Fatalf("expected counts to increment for miss, got attempts=%d correct=%d", updated.attemptCount, updated.correctCount)
+	}
+	if len(updated.deck) != 1 || updated.deck[0] != current {
+		t.Fatalf("expected current card to be requeued, got %+v", updated.deck)
+	}
+}
+
+func TestResolveTextAttemptFinishesOnEmptyDeck(t *testing.T) {
+	manager := NewGameManager(time.Now)
+	current := Card{PairID: 1, Direction: DirectionAToB, Shown: "hola", Expected: "adios"}
+	session := &GameSession{
+		chatID:           5,
+		userID:           6,
+		currentCard:      &current,
+		currentMessageID: 11,
+		currentResolved:  false,
+		deck:             []Card{},
+	}
+	manager.sessions[getSessionKey(5, 6)] = session
+
+	result := manager.ResolveTextAttempt(5, 6, "adios")
+	if !result.handled || !result.correct {
+		t.Fatalf("expected handled correct result, got %+v", result)
+	}
+	if result.statsText == "" {
+		t.Fatalf("expected stats text for finished session")
+	}
+	if manager.GetSession(5, 6) != nil {
+		t.Fatalf("expected session to be removed after finish")
+	}
+}
+
 func TestNormalizeAnswer(t *testing.T) {
 	cases := []struct {
 		input    string

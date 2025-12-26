@@ -183,20 +183,7 @@ func (m *GameManager) ResolveMissRequeue(session *GameSession) {
 
 // FinishStats builds the stats payload for a completed game session.
 func (m *GameManager) FinishStats(session *GameSession) string {
-	if session == nil {
-		return "Game over!\nYou got 0 correct answers.\nAccuracy: 0% (0/0)"
-	}
-	accuracy := 0
-	if session.attemptCount > 0 {
-		accuracy = int(math.Round(float64(session.correctCount) * 100 / float64(session.attemptCount)))
-	}
-	return fmt.Sprintf(
-		"Game over!\nYou got %d correct answers.\nAccuracy: %d%% (%d/%d)",
-		session.correctCount,
-		accuracy,
-		session.correctCount,
-		session.attemptCount,
-	)
+	return formatStats(session)
 }
 
 // SetCurrentMessageID stores the Telegram message ID for the current prompt.
@@ -207,6 +194,89 @@ func (m *GameManager) SetCurrentMessageID(session *GameSession, messageID int) {
 		return
 	}
 	session.currentMessageID = messageID
+}
+
+// SetCurrentMessageIDForToken stores the message ID if the token matches the active prompt.
+func (m *GameManager) SetCurrentMessageIDForToken(chatID, userID int64, token string, messageID int) {
+	key := getSessionKey(chatID, userID)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	session := m.sessions[key]
+	if session == nil {
+		return
+	}
+	if token != "" && session.currentToken != token {
+		return
+	}
+	session.currentMessageID = messageID
+}
+
+// GetSession returns the current session for a user, if any.
+func (m *GameManager) GetSession(chatID, userID int64) *GameSession {
+	key := getSessionKey(chatID, userID)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.sessions[key]
+}
+
+type attemptResult struct {
+	handled         bool
+	correct         bool
+	promptMessageID int
+	card            Card
+	nextCard        *Card
+	nextToken       string
+	statsText       string
+}
+
+// ResolveTextAttempt applies a typed answer and advances the session if possible.
+func (m *GameManager) ResolveTextAttempt(chatID, userID int64, userText string) attemptResult {
+	key := getSessionKey(chatID, userID)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	session := m.sessions[key]
+	if session == nil || session.currentCard == nil || session.currentResolved || session.currentMessageID == 0 {
+		return attemptResult{}
+	}
+
+	result := attemptResult{
+		handled:         true,
+		promptMessageID: session.currentMessageID,
+		card:            *session.currentCard,
+	}
+
+	normalizedUser := normalizeAnswer(userText)
+	normalizedExpected := normalizeAnswer(session.currentCard.Expected)
+	result.correct = normalizedUser == normalizedExpected
+
+	session.attemptCount++
+	if result.correct {
+		session.correctCount++
+	}
+	session.lastActivityAt = m.now()
+	session.currentResolved = true
+
+	if !result.correct {
+		session.deck = append(session.deck, *session.currentCard)
+	}
+
+	if len(session.deck) == 0 {
+		result.statsText = formatStats(session)
+		delete(m.sessions, key)
+		return result
+	}
+
+	card := session.deck[0]
+	session.deck = session.deck[1:]
+	session.currentCard = &card
+	session.currentResolved = false
+	session.currentMessageID = 0
+	session.currentToken = m.nextTokenLocked()
+	result.nextCard = &card
+	result.nextToken = session.currentToken
+
+	return result
 }
 
 func (m *GameManager) nextPromptLocked(session *GameSession) (Card, bool) {
@@ -224,6 +294,23 @@ func (m *GameManager) nextPromptLocked(session *GameSession) (Card, bool) {
 
 func (m *GameManager) nextTokenLocked() string {
 	return strconv.FormatInt(rand.Int63(), 36)
+}
+
+func formatStats(session *GameSession) string {
+	if session == nil {
+		return "Game over!\nYou got 0 correct answers.\nAccuracy: 0% (0/0)"
+	}
+	accuracy := 0
+	if session.attemptCount > 0 {
+		accuracy = int(math.Round(float64(session.correctCount) * 100 / float64(session.attemptCount)))
+	}
+	return fmt.Sprintf(
+		"Game over!\nYou got %d correct answers.\nAccuracy: %d%% (%d/%d)",
+		session.correctCount,
+		accuracy,
+		session.correctCount,
+		session.attemptCount,
+	)
 }
 
 func buildCard(pair db.WordPair, direction CardDirection) Card {
