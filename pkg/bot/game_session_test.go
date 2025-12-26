@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -322,6 +323,82 @@ func TestBuildCardSetsShownAndExpectedByDirection(t *testing.T) {
 	}
 	if card.Shown != pair.Word2 || card.Expected != pair.Word1 {
 		t.Fatalf("expected B_to_A mapping, got %+v", card)
+	}
+}
+
+type fakeSender struct {
+	messages []sentMessage
+}
+
+type sentMessage struct {
+	chatID int64
+	text   string
+}
+
+func (s *fakeSender) SendMessage(_ context.Context, chatID int64, text string) error {
+	s.messages = append(s.messages, sentMessage{chatID: chatID, text: text})
+	return nil
+}
+
+func TestCollectInactiveRemovesExpiredSessions(t *testing.T) {
+	clock := &testClock{t: time.Date(2024, 2, 1, 10, 0, 0, 0, time.UTC)}
+	manager := NewGameManager(clock.Now)
+
+	expiredSession := &GameSession{
+		chatID:         9,
+		userID:         9,
+		lastActivityAt: clock.t.Add(-InactivityTimeout - time.Second),
+		attemptCount:   2,
+		correctCount:   1,
+	}
+	activeSession := &GameSession{
+		chatID:         10,
+		userID:         10,
+		lastActivityAt: clock.t.Add(-InactivityTimeout + time.Second),
+	}
+
+	manager.sessions[getSessionKey(9, 9)] = expiredSession
+	manager.sessions[getSessionKey(10, 10)] = activeSession
+
+	expired := manager.collectInactive(clock.Now())
+	if len(expired) != 1 {
+		t.Fatalf("expected one expired session, got %d", len(expired))
+	}
+	if expired[0].chatID != 9 {
+		t.Fatalf("expected expired chatID 9, got %d", expired[0].chatID)
+	}
+	if manager.GetSession(9, 9) != nil {
+		t.Fatalf("expected expired session to be removed")
+	}
+	if manager.GetSession(10, 10) == nil {
+		t.Fatalf("expected active session to remain")
+	}
+}
+
+func TestSweepInactiveSendsStats(t *testing.T) {
+	clock := &testClock{t: time.Date(2024, 2, 1, 11, 0, 0, 0, time.UTC)}
+	manager := NewGameManager(clock.Now)
+
+	session := &GameSession{
+		chatID:         12,
+		userID:         12,
+		lastActivityAt: clock.t.Add(-InactivityTimeout - time.Second),
+		attemptCount:   3,
+		correctCount:   2,
+	}
+	manager.sessions[getSessionKey(12, 12)] = session
+
+	sender := &fakeSender{}
+	manager.SweepInactive(context.Background(), sender)
+
+	if len(sender.messages) != 1 {
+		t.Fatalf("expected one message sent, got %d", len(sender.messages))
+	}
+	if sender.messages[0].chatID != 12 {
+		t.Fatalf("expected chatID 12, got %d", sender.messages[0].chatID)
+	}
+	if sender.messages[0].text == "" {
+		t.Fatalf("expected stats text to be sent")
 	}
 }
 

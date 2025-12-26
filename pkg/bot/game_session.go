@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"math/rand"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/smith3v/tg-word-reminder/pkg/db"
+	"github.com/smith3v/tg-word-reminder/pkg/logger"
 )
 
 const (
@@ -59,6 +61,11 @@ type GameManager struct {
 	now      func() time.Time
 }
 
+// MessageSender abstracts message delivery for timeout sweeps.
+type MessageSender interface {
+	SendMessage(ctx context.Context, chatID int64, text string) error
+}
+
 // NewGameManager initializes a manager with an injectable clock.
 func NewGameManager(now func() time.Time) *GameManager {
 	if now == nil {
@@ -71,6 +78,11 @@ func NewGameManager(now func() time.Time) *GameManager {
 }
 
 var gameManager = NewGameManager(nil)
+
+// StartGameSweeper starts the inactivity sweeper for game sessions.
+func StartGameSweeper(ctx context.Context, sender MessageSender) {
+	gameManager.StartSweeper(ctx, sender)
+}
 
 // getSessionKey builds the map key for a user's active game session.
 func getSessionKey(chatID, userID int64) string {
@@ -102,6 +114,37 @@ func (m *GameManager) StartOrRestart(chatID, userID int64, vocabPairs []db.WordP
 	m.mu.Unlock()
 
 	return session
+}
+
+// StartSweeper periodically expires inactive sessions until ctx is canceled.
+func (m *GameManager) StartSweeper(ctx context.Context, sender MessageSender) {
+	if sender == nil {
+		return
+	}
+	ticker := time.NewTicker(SweeperInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			m.SweepInactive(ctx, sender)
+		}
+	}
+}
+
+// SweepInactive expires idle sessions and sends stats without holding the lock.
+func (m *GameManager) SweepInactive(ctx context.Context, sender MessageSender) {
+	if sender == nil {
+		return
+	}
+	expired := m.collectInactive(m.now())
+	for _, session := range expired {
+		if err := sender.SendMessage(ctx, session.chatID, session.statsText); err != nil {
+			logger.Error("failed to send game timeout stats", "chat_id", session.chatID, "error", err)
+		}
+	}
 }
 
 // selectRandomPairs loads up to limit random pairs for the user, matching /getpair's source.
@@ -329,6 +372,11 @@ func (m *GameManager) ResolveRevealAttempt(chatID, userID int64, token string, m
 	return result
 }
 
+type expiredSession struct {
+	chatID    int64
+	statsText string
+}
+
 func (m *GameManager) nextPromptLocked(session *GameSession) (Card, bool) {
 	if session == nil || len(session.deck) == 0 {
 		return Card{}, false
@@ -344,6 +392,27 @@ func (m *GameManager) nextPromptLocked(session *GameSession) (Card, bool) {
 
 func (m *GameManager) nextTokenLocked() string {
 	return strconv.FormatInt(rand.Int63(), 36)
+}
+
+func (m *GameManager) collectInactive(now time.Time) []expiredSession {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	expired := make([]expiredSession, 0)
+	for key, session := range m.sessions {
+		if session == nil {
+			delete(m.sessions, key)
+			continue
+		}
+		if now.Sub(session.lastActivityAt) > InactivityTimeout {
+			expired = append(expired, expiredSession{
+				chatID:    session.chatID,
+				statsText: formatStats(session),
+			})
+			delete(m.sessions, key)
+		}
+	}
+	return expired
 }
 
 func formatStats(session *GameSession) string {
