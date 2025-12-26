@@ -455,3 +455,15 @@ func TestHandleGameCallbackRevealRequeuesAndEdits(t *testing.T) {
 		t.Fatalf("expected reveal marker in edit text")
 	}
 }
+
+func TestFormatGameRevealTextAddsSpoilerAndEscapes(t *testing.T) {
+	card := Card{
+		Shown:    "hello_world",
+		Expected: "word[1]",
+	}
+	got := formatGameRevealText(card, "✅")
+	expected := "hello\\_world — ||word\\[1\\]|| ✅"
+	if got != expected {
+		t.Fatalf("expected %q, got %q", expected, got)
+	}
+}

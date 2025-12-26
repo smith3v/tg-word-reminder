@@ -100,18 +100,18 @@ Each user action that resolves the current prompt counts as an **attempt**:
 
 **Correct typed answer**
 
-- Bot edits the *prompt message* to reveal the full pair and mark it correct:
+- Bot edits the *prompt message* to reveal the full pair with the answer hidden under a spoiler and mark it correct:
 
-> **wordA — wordB ✅**
+> **wordA — ||wordB|| ✅**
 
 - Bot removes the card from the deck.
 - Bot sends the next prompt (if deck not empty).
 
 **Incorrect typed answer**
 
-- Bot edits the *prompt message* to reveal the full pair and remove the inline keyboard:
+- Bot edits the *prompt message* to reveal the full pair with the answer hidden under a spoiler and remove the inline keyboard:
 
-> **wordA — wordB ❌**
+> **wordA — ||wordB|| ❌**
 
 - Bot counts a miss.
 - Bot returns the card to the back of the deck.
@@ -120,9 +120,9 @@ Each user action that resolves the current prompt counts as an **attempt**:
 **👀 Reveal button**
 
 - Bot counts a miss.
-- Bot edits the *prompt message* to show the correct answer):
+- Bot edits the *prompt message* to show the correct answer hidden under a spoiler):
 
-> **wordA — wordB 👀**
+> **wordA — ||wordB|| 👀**
 
 - Bot returns the card to the back of the deck.
 - Bot sends the next prompt.
@@ -309,9 +309,9 @@ Transitions:
 - `/game` starts a session and builds a deck of **5 unique pairs** (or fewer if vocabulary is smaller).
 - The session generates **two cards per pair**, one in each direction.
 - A prompt message includes an inline **👀** button.
-- Pressing 👀 reveals the correct answer by editing the message, counts a miss, and requeues the card.
-- Incorrect typed answers count a miss, reveals the answer and requeue the card.
-- Correct typed answers reveal the full pair by editing the message and permanently remove the card.
+- Pressing 👀 reveals the correct answer (hidden under a spoiler) by editing the message, counts a miss, and requeues the card.
+- Incorrect typed answers count a miss, reveals the answer (hidden under a spoiler) and requeue the card.
+- Correct typed answers reveal the full pair (with the answer hidden under a spoiler) by editing the message and permanently remove the card.
 - Session ends when the **deck becomes empty** or after **15 minutes inactivity**, then prints stats including:
   - correct count (`N`)
   - accuracy percentage (`P%`)

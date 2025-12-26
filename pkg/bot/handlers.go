@@ -482,11 +482,12 @@ func HandleGameCallback(ctx context.Context, b *bot.Bot, update *models.Update) 
 		return
 	}
 
-	revealText := fmt.Sprintf("%s — %s 👀", result.card.Shown, result.card.Expected)
+	revealText := formatGameRevealText(result.card, "👀")
 	if _, err := b.EditMessageText(ctx, &bot.EditMessageTextParams{
 		ChatID:    chatID,
 		MessageID: result.promptMessageID,
 		Text:      revealText,
+		ParseMode: models.ParseModeMarkdown,
 		ReplyMarkup: &models.InlineKeyboardMarkup{
 			InlineKeyboard: [][]models.InlineKeyboardButton{},
 		},
@@ -546,11 +547,12 @@ func handleGameTextAttempt(ctx context.Context, b *bot.Bot, update *models.Updat
 	if result.correct {
 		revealSuffix = "✅"
 	}
-	revealText := fmt.Sprintf("%s — %s %s", result.card.Shown, result.card.Expected, revealSuffix)
+	revealText := formatGameRevealText(result.card, revealSuffix)
 	_, err := b.EditMessageText(ctx, &bot.EditMessageTextParams{
 		ChatID:    chatID,
 		MessageID: result.promptMessageID,
 		Text:      revealText,
+		ParseMode: models.ParseModeMarkdown,
 		ReplyMarkup: &models.InlineKeyboardMarkup{
 			InlineKeyboard: [][]models.InlineKeyboardButton{},
 		},
@@ -603,4 +605,10 @@ func sendGamePrompt(ctx context.Context, b *bot.Bot, chatID int64, card *Card, t
 		Text:        prompt,
 		ReplyMarkup: keyboard,
 	})
+}
+
+func formatGameRevealText(card Card, suffix string) string {
+	shown := bot.EscapeMarkdown(card.Shown)
+	expected := bot.EscapeMarkdown(card.Expected)
+	return fmt.Sprintf("%s — ||%s|| %s", shown, expected, suffix)
 }
