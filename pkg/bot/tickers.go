@@ -10,6 +10,73 @@ import (
 	"github.com/smith3v/tg-word-reminder/pkg/logger"
 )
 
+const (
+	reminderWindowStartHour = 8
+	reminderWindowEndHour   = 22
+	reminderWindowHours     = reminderWindowEndHour - reminderWindowStartHour
+	reminderWindowMinutes   = reminderWindowHours * 60
+)
+
+var (
+	reminderWindowDuration = time.Duration(reminderWindowHours) * time.Hour
+	amsterdamLocation      = loadAmsterdamLocation()
+)
+
+type tickerHandle struct {
+	C    <-chan time.Time
+	stop func()
+}
+
+var tickerFactory = func(d time.Duration) tickerHandle {
+	t := time.NewTicker(d)
+	return tickerHandle{
+		C: t.C,
+		stop: func() {
+			t.Stop()
+		},
+	}
+}
+
+type userTicker struct {
+	stopFunc func()
+	channel  <-chan time.Time
+	stop     chan struct{}
+	user     db.UserSettings
+}
+
+func (t *userTicker) stopTicker() {
+	if t == nil {
+		return
+	}
+	if t.stopFunc != nil {
+		t.stopFunc()
+	}
+	if t.stop == nil {
+		return
+	}
+	select {
+	case <-t.stop:
+	default:
+		close(t.stop)
+	}
+}
+
+func isWithinReminderWindow(ts time.Time) bool {
+	localTime := ts.In(amsterdamLocation)
+	start := time.Date(localTime.Year(), localTime.Month(), localTime.Day(), reminderWindowStartHour, 0, 0, 0, amsterdamLocation)
+	end := time.Date(localTime.Year(), localTime.Month(), localTime.Day(), reminderWindowEndHour, 0, 0, 0, amsterdamLocation)
+	return !localTime.Before(start) && localTime.Before(end)
+}
+
+func loadAmsterdamLocation() *time.Location {
+	loc, err := time.LoadLocation("Europe/Amsterdam")
+	if err != nil {
+		logger.Error("failed to load Amsterdam timezone, falling back to UTC", "error", err)
+		return time.UTC
+	}
+	return loc
+}
+
 func StartPeriodicMessages(ctx context.Context, b *bot.Bot) {
 	var users []db.UserSettings
 	if err := db.DB.Find(&users).Error; err != nil {
@@ -17,10 +84,7 @@ func StartPeriodicMessages(ctx context.Context, b *bot.Bot) {
 		return
 	}
 
-	var tickers []struct {
-		ticker *time.Ticker
-		user   db.UserSettings
-	}
+	var tickers []userTicker
 
 	// Initialize tickers for existing users
 	for _, user := range users {
@@ -34,18 +98,18 @@ func StartPeriodicMessages(ctx context.Context, b *bot.Bot) {
 	for {
 		select {
 		case <-ctx.Done():
-			for _, t := range tickers {
-				t.ticker.Stop() // Stop all tickers when context is done
+			for i := range tickers {
+				tickers[i].stopTicker() // Stop all tickers when context is done
 			}
 			return
 		case <-settingsUpdateTicker.C:
 			updateUserTickers(&tickers) // Check for user settings updates and new users
 		default:
 			time.Sleep(1000 * time.Millisecond) // Adjust the duration as needed
-			for _, t := range tickers {
+			for i := range tickers {
 				select {
-				case <-t.ticker.C:
-					sendReminders(ctx, b, t.user) // Send reminders for the corresponding user
+				case <-tickers[i].channel:
+					sendReminders(ctx, b, tickers[i].user) // Send reminders for the corresponding user
 				default:
 					continue
 				}
@@ -55,32 +119,61 @@ func StartPeriodicMessages(ctx context.Context, b *bot.Bot) {
 }
 
 // Helper function to create a ticker for a user
-func createUserTicker(user db.UserSettings) struct {
-	ticker *time.Ticker
-	user   db.UserSettings
-} {
-	var ticker *time.Ticker
-	switch {
-	case user.RemindersPerDay >= 24*60:
-		ticker = time.NewTicker(time.Minute)
-	case user.RemindersPerDay > 24:
-		interval := time.Duration(24*60/user.RemindersPerDay) * time.Minute
-		ticker = time.NewTicker(interval)
-	default:
-		interval := 24 * time.Hour / time.Duration(user.RemindersPerDay)
-		ticker = time.NewTicker(interval)
+func createUserTicker(user db.UserSettings) userTicker {
+	remindersPerDay := user.RemindersPerDay
+	if remindersPerDay <= 0 {
+		remindersPerDay = 1
 	}
-	return struct {
-		ticker *time.Ticker
-		user   db.UserSettings
-	}{ticker: ticker, user: user}
+
+	var interval time.Duration
+	switch {
+	case remindersPerDay >= reminderWindowMinutes:
+		interval = time.Minute
+	case remindersPerDay > reminderWindowHours:
+		interval = time.Duration(reminderWindowMinutes/remindersPerDay) * time.Minute
+	default:
+		interval = reminderWindowDuration / time.Duration(remindersPerDay)
+	}
+	if interval <= 0 {
+		interval = time.Minute
+	}
+
+	source := tickerFactory(interval)
+
+	stop := make(chan struct{})
+	filtered := make(chan time.Time, 1)
+	go func() {
+		for {
+			select {
+			case <-stop:
+				return
+			case tick := <-source.C:
+				if !isWithinReminderWindow(tick) {
+					continue
+				}
+				select {
+				case <-stop:
+					return
+				case filtered <- tick:
+				}
+			}
+		}
+	}()
+
+	return userTicker{
+		stopFunc: func() {
+			if source.stop != nil {
+				source.stop()
+			}
+		},
+		channel: filtered,
+		stop:    stop,
+		user:    user,
+	}
 }
 
 // Function to update user tickers based on settings changes and check for new users
-func updateUserTickers(tickers *[]struct {
-	ticker *time.Ticker
-	user   db.UserSettings
-}) {
+func updateUserTickers(tickers *[]userTicker) {
 	var users []db.UserSettings
 	if err := db.DB.Find(&users).Error; err != nil {
 		logger.Error("failed to fetch users for settings update", "error", err)
@@ -102,7 +195,7 @@ func updateUserTickers(tickers *[]struct {
 				if t.user.UserID == user.UserID {
 					if t.user.RemindersPerDay != user.RemindersPerDay || t.user.PairsToSend != user.PairsToSend {
 						logger.Debug("user settings updated", "user_id", user.UserID, "old_settings", t.user, "new_settings", user)
-						t.ticker.Stop()                        // Stop the old ticker
+						(*tickers)[i].stopTicker()             // Stop the old ticker
 						(*tickers)[i] = createUserTicker(user) // Recreate the ticker with updated settings
 					}
 					break
