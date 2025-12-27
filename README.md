@@ -24,34 +24,100 @@ This is a Telegram bot built using Go that allows users to upload word pairs and
    cd <repository-directory>
    ```
 
-2. **Install dependencies:**
-   ```bash
-   go mod tidy
+2. **Create a production `.env` for Docker Compose:**
+   ```dotenv
+   # .env
+   POSTGRES_USER=your_db_user
+   POSTGRES_PASSWORD=your_db_password
+   POSTGRES_DB=your_db_name
    ```
+   Keep these values in sync with the database settings in `config.json`.
 
 3. **Create a configuration file:**
-   Create a `config.json` file in the root directory of the project with the following structure:
-   ```json
-   {
-       "database": {
-           "host": "your-database-host",
-           "user": "your-database-user",
-           "password": "your-database-password",
-           "dbname": "your-database-name",
-           "port": "your-database-port",
-           "sslmode": "require"
-       },
-       "telegram": {
-           "token": "your-telegram-bot-token"
-       }
-   }
+   Copy `config.example.json` to `config.json` and set your Telegram bot token and database credentials to match `.env`.
+   ```bash
+   cp config.example.json config.json
+   ```
+   For local development values and `.env.development`, see [Local Development (Docker Compose)](#local-development-docker-compose).
+
+4. **Run the bot with Docker Compose:**
+   ```bash
+   docker compose up --build
+   ```
+   Run detached if you prefer:
+   ```bash
+   docker compose up -d --build
    ```
 
-4. **Run the bot:**
-   ```bash
-   go build ./cmd/tg-word-reminder
-   ./tg-word-reminder
+## Local Development (Docker Compose)
+
+For local development, use Docker Compose to run the bot and PostgreSQL.
+
+1. **Create a development `.env.development` file:**
+   ```dotenv
+   # .env.development
+   POSTGRES_USER=tgwr
+   POSTGRES_PASSWORD=tgwr_local_password
+   POSTGRES_DB=tgwrdb
    ```
+   Keep these values in sync with the database settings in `config.json`.
+
+2. **Update database settings in `config.json`:**
+   Set database values to match `.env.development`:
+   - host: `db`
+   - user: `tgwr`
+   - password: `tgwr_local_password`
+   - dbname: `tgwrdb`
+   - port: `5432`
+   - sslmode: `disable`
+
+3. **Start the stack with the development env file:**
+   ```bash
+   docker compose --env-file .env.development up --build
+   ```
+   Run detached if you prefer:
+   ```bash
+   docker compose --env-file .env.development up -d --build
+   ```
+   Use `--env-file .env.development` with other Compose commands too.
+
+4. **Useful Compose commands:**
+   Tail logs for the bot:
+   ```bash
+   docker compose --env-file .env.development logs -f tg-word-reminder
+   ```
+
+5. **Connect to the local database (in-container):**
+   ```bash
+   docker compose --env-file .env.development exec db psql -U tgwr -d tgwrdb
+   ```
+
+6. **Connect to the local database (host):**
+   ```bash
+   psql -h 127.0.0.1 -U tgwr -d tgwrdb
+   ```
+
+## Database Backups (Docker Compose)
+
+The Compose stack includes a `db-backup` service that runs `pg_dump` every hour and keeps four days of plain SQL backups (compressed with gzip) in `./backups`.
+
+Defaults (override via `.env` or `.env.development`):
+```dotenv
+BACKUP_INTERVAL_SECONDS=3600
+BACKUP_RETENTION_DAYS=4
+```
+
+Restore a backup:
+```bash
+gunzip -c backups/<backup-file>.sql.gz | psql -h 127.0.0.1 -U tgwr -d tgwrdb
+```
+
+## Testing
+
+Run unit tests locally:
+```bash
+go test ./...
+```
 
 ## Usage
 

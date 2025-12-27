@@ -1,4 +1,8 @@
-config.json
-/tg-word-reminder
+config.json*
+.env
+.env.*
+tg-word-reminder
 .DS_Store
 .gocache
+pgdata/
+backups/
