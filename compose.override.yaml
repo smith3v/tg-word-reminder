@@ -1,0 +1,13 @@
+services:
+  db:
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  tg-word-reminder:
+    build:
+      context: .
+    image: tgwr-local:dev
+    volumes:
+      - ./config.json:/app/config.json:ro
+    # Optional: easier debugging by restarting less aggressively
+    restart: unless-stopped

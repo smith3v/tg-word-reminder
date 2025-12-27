@@ -1,0 +1,44 @@
+name: tgwr
+
+services:
+  tg-word-reminder:
+    image: ghcr.io/smith3v/tg-word-reminder:latest
+    volumes:
+      - ./config.json:/app/config.json:ro
+    restart: "always"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:17
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 1s
+      timeout: 5s
+      retries: 30
+
+  db-backup:
+    image: postgres:17
+    restart: always
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-3600}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-4}
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup.sh:/usr/local/bin/backup.sh:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    entrypoint: ["/usr/local/bin/backup.sh"]
