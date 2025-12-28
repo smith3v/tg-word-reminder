@@ -105,6 +105,74 @@ Use a small in-memory sample of the CSV file to pick the delimiter before full p
 
 - Add a unique index on `(user_id, word1)` to enforce a single row per word per user.
 - Ensure update statements only modify `word2` to preserve any existing stats columns.
+- Migration note: deploying this change on existing databases requires creating the unique index; ensure any duplicates per `(user_id, word1)` are resolved before applying the migration.
+
+### Pre-migration duplicate cleanup checklist (PostgreSQL)
+
+- Identify duplicates:
+  ```sql
+  SELECT user_id, word1, COUNT(*) AS duplicate_count
+  FROM word_pairs
+  GROUP BY user_id, word1
+  HAVING COUNT(*) > 1
+  ORDER BY duplicate_count DESC, user_id;
+  ```
+- Show only duplicate rows (full records):
+  ```sql
+  SELECT wp.*
+  FROM word_pairs wp
+  JOIN (
+    SELECT user_id, word1
+    FROM word_pairs
+    GROUP BY user_id, word1
+    HAVING COUNT(*) > 1
+  ) dups
+    ON wp.user_id = dups.user_id
+   AND wp.word1 = dups.word1
+  ORDER BY wp.user_id, wp.word1, wp.id;
+  ```
+- Inspect the specific rows for a given user/word:
+  ```sql
+  SELECT id, user_id, word1, word2
+  FROM word_pairs
+  WHERE user_id = $USER_ID AND word1 = $WORD1
+  ORDER BY id;
+  ```
+- Keep one row (lowest id) and remove the rest:
+  ```sql
+  DELETE FROM word_pairs a
+  USING word_pairs b
+  WHERE a.user_id = b.user_id
+    AND a.word1 = b.word1
+    AND a.id > b.id;
+  ```
+- If duplicates have different `word2` values, merge them into a single comma-separated value before deletion. Example (keeps lowest id and merges others):
+  ```sql
+  WITH merged AS (
+    SELECT
+      MIN(id) AS keep_id,
+      user_id,
+      word1,
+      STRING_AGG(DISTINCT word2, ',' ORDER BY word2) AS merged_word2
+    FROM word_pairs
+    GROUP BY user_id, word1
+    HAVING COUNT(*) > 1
+  )
+  UPDATE word_pairs wp
+  SET word2 = merged.merged_word2
+  FROM merged
+  WHERE wp.id = merged.keep_id;
+  ```
+- Verify cleanup:
+  ```sql
+  SELECT COUNT(*) AS remaining_duplicates
+  FROM (
+    SELECT 1
+    FROM word_pairs
+    GROUP BY user_id, word1
+    HAVING COUNT(*) > 1
+  ) t;
+  ```
 
 ---
 

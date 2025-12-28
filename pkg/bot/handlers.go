@@ -2,12 +2,14 @@
 package bot
 
 import (
+	"bytes"
 	"context"
-	"encoding/csv"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -44,7 +46,8 @@ func DefaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 				"\\* /getpair: get a random word pair\\.\n" +
 				"\\* /game: start a quiz session\\.\n" +
 				"\\* /settings: configure reminders and pair counts\\.\n" +
-				"\\* /clear: remove all uploaded word pairs\\.\n\n" +
+				"\\* /clear: remove all uploaded word pairs\\.\n" +
+				"\\* /export: download your vocabulary\\.\n\n" +
 				"If you attach a CSV file here\\, I\\'ll upload the word pairs to your account\\. Please refer to [the example](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/example.csv) for a file format\\, or to [Dutch\\-English vocabulary example](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/dutch-english.csv)\\.",
 			ParseMode: models.ParseModeMarkdown,
 		})
@@ -91,45 +94,46 @@ func DefaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	}
 	defer resp.Body.Close()
 
-	// Read the CSV file
-	reader := csv.NewReader(resp.Body)
-	reader.Comma = '\t' // Set the delimiter to tab
-	records, err := reader.ReadAll()
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		logger.Error("failed to read CSV file", "error", err)
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "Failed to read the CSV file. Please try again.",
+		})
+		return
+	}
+
+	pairs, skipped, err := parseVocabularyCSV(data)
+	if err != nil {
+		logger.Error("failed to parse CSV file", "error", err)
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
 			Text:   "Failed to read the CSV file. Please ensure it is in the correct format.",
 		})
 		return
 	}
+	if len(pairs) == 0 {
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "No valid word pairs found to import.",
+		})
+		return
+	}
 
-	// Process each record
-	for _, record := range records {
-		if len(record) != 2 {
-			b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID: update.Message.Chat.ID,
-				Text:   fmt.Sprintf("Invalid format in record: %v. Please use 'word1\tword2' format.", record),
-			})
-			continue
-		}
-		wordPair := db.WordPair{
-			UserID: update.Message.From.ID,
-			Word1:  strings.TrimSpace(record[0]),
-			Word2:  strings.TrimSpace(record[1]),
-		}
-		if err := db.DB.Create(&wordPair).Error; err != nil {
-			logger.Error("failed to create word pair", "user_id", update.Message.From.ID, "error", err)
-			b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID: update.Message.Chat.ID,
-				Text:   fmt.Sprintf("Failed to upload word pair: %v", record),
-			})
-		}
+	inserted, updated, err := upsertWordPairs(update.Message.From.ID, pairs)
+	if err != nil {
+		logger.Error("failed to import word pairs", "user_id", update.Message.From.ID, "error", err)
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "Failed to import your word pairs. Please try again later.",
+		})
+		return
 	}
 
 	b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: update.Message.Chat.ID,
-		Text:   "Word pairs uploaded successfully.",
+		Text:   fmt.Sprintf("Imported %d new pairs, updated %d pairs, skipped %d rows.", inserted, updated, skipped),
 	})
 }
 
@@ -170,9 +174,9 @@ func HandleStart(ctx context.Context, b *bot.Bot, update *models.Update) {
 		ChatID: update.Message.Chat.ID,
 		Text: "Welcome\\!\n\n" +
 			"This bot helps you practice word pairs with short quizzes and reminders\\.\n" +
-			"Start by uploading your vocabulary as a tab\\-separated CSV \\(word1\\<TAB\\>word2\\)\\.\n" +
+			"Start by uploading your vocabulary as a CSV file \\(comma\\, tab\\, or semicolon separated\\)\\.\n" +
 			"See the [example format](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/example.csv) or the [Dutch\\-English sample](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/dutch-english.csv)\\.\n\n" +
-			"Use /settings to adjust reminder frequency and pair count\\, /getpair for a quick random pair\\, or /game to start a quiz session\\.",
+			"Use /settings to adjust reminder frequency and pair count\\, /getpair for a quick random pair\\, /export to download your vocabulary\\, or /game to start a quiz session\\.",
 		ParseMode: models.ParseModeMarkdown,
 	})
 	if err != nil {
@@ -389,6 +393,66 @@ func HandleGetPair(ctx context.Context, b *bot.Bot, update *models.Update) {
 	})
 	if err != nil {
 		logger.Error("failed to send random word pair message", "user_id", update.Message.From.ID, "error", err)
+	}
+}
+
+func HandleExport(ctx context.Context, b *bot.Bot, update *models.Update) {
+	if update == nil || update.Message == nil || update.Message.From == nil || update.Message.Chat.ID == 0 {
+		logger.Error("invalid update in handleExport")
+		return
+	}
+	if update.Message.Chat.Type != models.ChatTypePrivate {
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "The /export command works only in private chat.",
+		})
+		return
+	}
+
+	var pairs []db.WordPair
+	if err := db.DB.Where("user_id = ?", update.Message.From.ID).Order("word1 ASC, id ASC").Find(&pairs).Error; err != nil {
+		logger.Error("failed to fetch word pairs for export", "user_id", update.Message.From.ID, "error", err)
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "Failed to export your vocabulary. Please try again later.",
+		})
+		return
+	}
+	if len(pairs) == 0 {
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "You have no vocabulary to export.",
+		})
+		return
+	}
+
+	sortPairsForExport(pairs)
+	data, err := buildExportCSV(pairs)
+	if err != nil {
+		logger.Error("failed to build export CSV", "user_id", update.Message.From.ID, "error", err)
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "Failed to export your vocabulary. Please try again later.",
+		})
+		return
+	}
+
+	filename := exportFilename(time.Now())
+	caption := fmt.Sprintf("Your vocabulary export (%d pairs).", len(pairs))
+	_, err = b.SendDocument(ctx, &bot.SendDocumentParams{
+		ChatID: update.Message.Chat.ID,
+		Document: &models.InputFileUpload{
+			Filename: filename,
+			Data:     bytes.NewReader(data),
+		},
+		Caption: caption,
+	})
+	if err != nil {
+		logger.Error("failed to send export document", "user_id", update.Message.From.ID, "error", err)
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "Failed to export your vocabulary. Please try again later.",
+		})
 	}
 }
 
