@@ -50,6 +50,7 @@ func main() {
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/settings", bot.MatchTypeExact, reminderBot.HandleSettings)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/clear", bot.MatchTypeExact, reminderBot.HandleClear)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/getpair", bot.MatchTypeExact, reminderBot.HandleGetPair)
+	b.RegisterHandler(bot.HandlerTypeMessageText, "/export", bot.MatchTypeExact, reminderBot.HandleExport)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/game", bot.MatchTypeExact, reminderBot.HandleGameStart)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "s:", bot.MatchTypePrefix, reminderBot.HandleSettingsCallback)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "g:r:", bot.MatchTypePrefix, reminderBot.HandleGameCallback)

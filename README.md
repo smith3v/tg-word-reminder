@@ -4,7 +4,7 @@ This is a Telegram bot built using Go that allows users to upload word pairs and
 
 ## Features
 
-- Upload word pairs as a tab separated CSV (`word1\tword2`).
+- Upload word pairs as a CSV file (`word1,word2` or tab/semicolon separated).
 - Clear uploaded word pairs.
 - Set the number of pairs to send in reminders.
 - Set the frequency of reminders per day.
@@ -121,12 +121,15 @@ go test ./...
 
 ## Usage
 
-You can send a CSV file with word pairs to the bot to upload them. Please refer to the example file `example.csv` for the correct format.
+You can send a CSV file with word pairs to the bot to upload them. The first two columns are used as `word1` and `word2` (comma, tab, or semicolon separated). Please refer to the example file `example.csv` for the correct format.
 
 - **Commands:**
-  - `/getpair`: Get a random word pair.
-  - `/settings`: Configure reminders and pairs per reminder.
-  - `/clear`: Clear all uploaded word pairs.
+  - `/start:` initialize your account.
+  - `/getpair`: get a random word pair.
+  - `/game`: start a quiz session.
+  - `/settings`: configure reminders and pair counts.
+  - `/export`: download your vocabulary.
+  - `/clear`: remove all uploaded word pairs.
 
 ## Database Setup
 

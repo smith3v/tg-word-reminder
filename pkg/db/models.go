@@ -3,8 +3,8 @@ package db
 
 type WordPair struct {
 	ID     uint   `gorm:"primaryKey"`
-	UserID int64  `gorm:"index"` // To keep pairs separate for each user
-	Word1  string `gorm:"not null"`
+	UserID int64  `gorm:"index;uniqueIndex:idx_user_word1"` // To keep pairs separate for each user
+	Word1  string `gorm:"not null;uniqueIndex:idx_user_word1"`
 	Word2  string `gorm:"not null"`
 }
 
