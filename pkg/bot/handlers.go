@@ -46,8 +46,8 @@ func DefaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 				"\\* /getpair: get a random word pair\\.\n" +
 				"\\* /game: start a quiz session\\.\n" +
 				"\\* /settings: configure reminders and pair counts\\.\n" +
-				"\\* /export: download your vocabulary\\.\n\n" +
-				"\\* /clear: remove all uploaded word pairs\\.\n" +
+				"\\* /export: download your vocabulary\\.\n" +
+				"\\* /clear: remove all uploaded word pairs\\.\n\n" +
 				"If you attach a CSV file here\\, I\\'ll upload the word pairs to your account\\. Please refer to [the example](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/example.csv) for a file format\\, or to [Dutch\\-English vocabulary example](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/dutch-english.csv)\\.",
 			ParseMode: models.ParseModeMarkdown,
 		})
