@@ -484,7 +484,7 @@ func TestResolveTextAttemptIncorrectRequeues(t *testing.T) {
 	}
 }
 
-func TestResolveTextAttemptAcceptsCommaOptions(t *testing.T) {
+func TestResolveTextAttemptAcceptsCommaOption(t *testing.T) {
 	manager := NewGameManager(time.Now)
 	current := Card{PairID: 1, Direction: DirectionAToB, Shown: "hola", Expected: "adios, hasta luego"}
 	session := &GameSession{
@@ -500,6 +500,63 @@ func TestResolveTextAttemptAcceptsCommaOptions(t *testing.T) {
 	result := manager.ResolveTextAttempt(7, 8, " Hasta luego ")
 	if !result.handled || !result.correct {
 		t.Fatalf("expected comma option to be accepted, got %+v", result)
+	}
+}
+
+func TestResolveTextAttemptAcceptsFullCommaAnswerWhenPromptHasComma(t *testing.T) {
+	manager := NewGameManager(time.Now)
+	current := Card{PairID: 1, Direction: DirectionAToB, Shown: "new york, usa", Expected: "adios, hasta luego"}
+	session := &GameSession{
+		chatID:           11,
+		userID:           12,
+		currentCard:      &current,
+		currentMessageID: 55,
+		currentResolved:  false,
+		deck:             []Card{},
+	}
+	manager.sessions[getSessionKey(11, 12)] = session
+
+	result := manager.ResolveTextAttempt(11, 12, "adios, hasta luego")
+	if !result.handled || !result.correct {
+		t.Fatalf("expected full comma answer to be accepted, got %+v", result)
+	}
+}
+
+func TestResolveTextAttemptAcceptsSingleAnswerWhenPromptHasComma(t *testing.T) {
+	manager := NewGameManager(time.Now)
+	current := Card{PairID: 1, Direction: DirectionAToB, Shown: "new york, usa", Expected: "adios, hasta luego"}
+	session := &GameSession{
+		chatID:           13,
+		userID:           14,
+		currentCard:      &current,
+		currentMessageID: 66,
+		currentResolved:  false,
+		deck:             []Card{},
+	}
+	manager.sessions[getSessionKey(13, 14)] = session
+
+	result := manager.ResolveTextAttempt(13, 14, "Hasta luego")
+	if !result.handled || !result.correct {
+		t.Fatalf("expected single answer to be accepted, got %+v", result)
+	}
+}
+
+func TestResolveTextAttemptRejectsPartialCommaAnswerWhenPromptHasComma(t *testing.T) {
+	manager := NewGameManager(time.Now)
+	current := Card{PairID: 1, Direction: DirectionAToB, Shown: "new york, usa", Expected: "adios, hasta luego"}
+	session := &GameSession{
+		chatID:           15,
+		userID:           16,
+		currentCard:      &current,
+		currentMessageID: 77,
+		currentResolved:  false,
+		deck:             []Card{},
+	}
+	manager.sessions[getSessionKey(15, 16)] = session
+
+	result := manager.ResolveTextAttempt(15, 16, "adios, nope")
+	if !result.handled || result.correct {
+		t.Fatalf("expected partial comma answer to be rejected, got %+v", result)
 	}
 }
 

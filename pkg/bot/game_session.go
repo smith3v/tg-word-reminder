@@ -299,7 +299,7 @@ func (m *GameManager) ResolveTextAttempt(chatID, userID int64, userText string) 
 		card:            *session.currentCard,
 	}
 
-	result.correct = matchesExpected(userText, session.currentCard.Expected)
+	result.correct = matchesExpected(userText, session.currentCard.Expected, strings.Contains(session.currentCard.Shown, ","))
 
 	session.attemptCount++
 	if result.correct {
@@ -465,20 +465,72 @@ func normalizeAnswer(input string) string {
 	return strings.TrimSpace(trimmed)
 }
 
-func matchesExpected(userText, expected string) bool {
+func matchesExpected(userText, expected string, promptHasComma bool) bool {
+	if strings.Contains(expected, ",") {
+		if promptHasComma && strings.Contains(userText, ",") {
+			return matchesCommaList(userText, expected)
+		}
+		return matchesAnyCommaToken(userText, expected)
+	}
+	return normalizeAnswer(userText) == normalizeAnswer(expected)
+}
+
+func matchesAnyCommaToken(userText, expected string) bool {
 	normalizedUser := normalizeAnswer(userText)
 	if normalizedUser == "" {
 		return false
 	}
-	options := strings.Split(expected, ",")
-	for _, option := range options {
-		normalizedOption := normalizeAnswer(option)
-		if normalizedOption == "" {
-			continue
-		}
-		if normalizedUser == normalizedOption {
+	tokens, ok := splitCommaTokens(expected)
+	if !ok {
+		return false
+	}
+	for _, token := range tokens {
+		if normalizedUser == token {
 			return true
 		}
 	}
 	return false
+}
+
+func matchesCommaList(userText, expected string) bool {
+	userTokens, ok := splitCommaTokens(userText)
+	if !ok {
+		return false
+	}
+	expectedTokens, ok := splitCommaTokens(expected)
+	if !ok {
+		return false
+	}
+	if len(userTokens) != len(expectedTokens) || len(userTokens) == 0 {
+		return false
+	}
+	expectedCounts := make(map[string]int, len(expectedTokens))
+	for _, token := range expectedTokens {
+		expectedCounts[token]++
+	}
+	for _, token := range userTokens {
+		expectedCounts[token]--
+		if expectedCounts[token] < 0 {
+			return false
+		}
+	}
+	for _, count := range expectedCounts {
+		if count != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func splitCommaTokens(input string) ([]string, bool) {
+	parts := strings.Split(input, ",")
+	tokens := make([]string, 0, len(parts))
+	for _, part := range parts {
+		token := normalizeAnswer(part)
+		if token == "" {
+			return nil, false
+		}
+		tokens = append(tokens, token)
+	}
+	return tokens, true
 }
