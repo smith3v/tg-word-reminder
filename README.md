@@ -124,10 +124,12 @@ go test ./...
 You can send a CSV file with word pairs to the bot to upload them. The first two columns are used as `word1` and `word2` (comma, tab, or semicolon separated). Please refer to the example file `example.csv` for the correct format.
 
 - **Commands:**
-  - `/getpair`: Get a random word pair.
-  - `/settings`: Configure reminders and pairs per reminder.
-  - `/clear`: Clear all uploaded word pairs.
-  - `/export`: Download your vocabulary as a CSV file.
+  - `/start:` initialize your account.
+  - `/getpair`: get a random word pair.
+  - `/game`: start a quiz session.
+  - `/settings`: configure reminders and pair counts.
+  - `/export`: download your vocabulary.
+  - `/clear`: remove all uploaded word pairs.
 
 ## Database Setup
 
