@@ -207,6 +207,34 @@ Because this is a “live chat game” and the bot is typically single-instance/
 - Minimal schema changes.
 - Resets naturally on bot restart (acceptable for a “session game”).
 
+### Game session stats persistence
+
+To understand feature usage and capture sessions that start but never finish, record a row per session in a new table.
+
+**Table: `game_sessions`**
+
+- `id` (PK, bigserial)
+- `user_id` (bigint, not null)
+- `session_date` (date, not null) — UTC date when the session started
+- `started_at` (timestamp with time zone, not null, default now)
+- `ended_at` (timestamp with time zone, nullable)
+- `duration_seconds` (integer, nullable) — elapsed time from session start to end
+- `ended_reason` (text, nullable) — `finished` or `timeout`
+- `correct_count` (integer, not null, default 0)
+- `attempt_count` (integer, not null, default 0)
+
+**Write conditions**
+
+- Insert once when a session starts.
+- Update on session end to store counts.
+- On end (deck empty or inactivity timeout): set `ended_at`, `ended_reason`, and `duration_seconds = ended_at - started_at`.
+- Sessions with `ended_at` null indicate started but never finished.
+
+**Query examples**
+
+- Daily active users: count distinct `user_id` by `session_date`.
+- Completion rate: percentage of sessions with `ended_reason = finished`.
+
 ---
 
 ## State machine

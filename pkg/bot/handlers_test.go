@@ -113,7 +113,7 @@ func setupTestDB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open sqlite database: %v", err)
 	}
-	if err := gdb.AutoMigrate(&dbpkg.WordPair{}, &dbpkg.UserSettings{}); err != nil {
+	if err := gdb.AutoMigrate(&dbpkg.WordPair{}, &dbpkg.UserSettings{}, &dbpkg.GameSession{}); err != nil {
 		t.Fatalf("failed to migrate schema: %v", err)
 	}
 

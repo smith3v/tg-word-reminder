@@ -605,3 +605,203 @@ func TestNormalizeAnswer(t *testing.T) {
 		}
 	}
 }
+
+func TestGameSessionPersistenceStartCreatesRow(t *testing.T) {
+	setupTestDB(t)
+
+	clock := &testClock{t: time.Date(2024, 3, 1, 9, 0, 0, 0, time.UTC)}
+	manager := NewGameManager(clock.Now)
+	pairs := []db.WordPair{
+		{ID: 1, UserID: 501, Word1: "hola", Word2: "adios"},
+	}
+
+	session := manager.StartOrRestart(1001, 501, pairs)
+	if session.sessionID == 0 {
+		t.Fatalf("expected session to persist and have an ID")
+	}
+
+	stored := fetchGameSession(t, session.sessionID)
+	if stored.UserID != 501 {
+		t.Fatalf("expected user_id 501, got %d", stored.UserID)
+	}
+	if stored.StartedAt.UTC() != clock.t {
+		t.Fatalf("expected started_at %v, got %v", clock.t, stored.StartedAt.UTC())
+	}
+	if stored.SessionDate.Year() != clock.t.Year() ||
+		stored.SessionDate.Month() != clock.t.Month() ||
+		stored.SessionDate.Day() != clock.t.Day() {
+		t.Fatalf("unexpected session_date: %v", stored.SessionDate)
+	}
+	if stored.EndedAt != nil || stored.EndedReason != nil || stored.DurationSeconds != nil {
+		t.Fatalf("expected end fields to be null for new session")
+	}
+	if stored.AttemptCount != 0 || stored.CorrectCount != 0 {
+		t.Fatalf("expected counts to start at zero")
+	}
+}
+
+func TestGameSessionPersistenceAttemptsUpdateCounts(t *testing.T) {
+	tests := []struct {
+		name         string
+		apply        func(manager *GameManager, session *GameSession, chatID, userID int64)
+		wantAttempts int
+		wantCorrect  int
+	}{
+		{
+			name: "text-correct",
+			apply: func(manager *GameManager, session *GameSession, chatID, userID int64) {
+				manager.ResolveTextAttempt(chatID, userID, session.currentCard.Expected)
+			},
+			wantAttempts: 1,
+			wantCorrect:  1,
+		},
+		{
+			name: "reveal-miss",
+			apply: func(manager *GameManager, session *GameSession, chatID, userID int64) {
+				manager.ResolveRevealAttempt(chatID, userID, session.currentToken, session.currentMessageID)
+			},
+			wantAttempts: 1,
+			wantCorrect:  0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupTestDB(t)
+
+			clock := &testClock{t: time.Date(2024, 3, 2, 10, 0, 0, 0, time.UTC)}
+			manager := NewGameManager(clock.Now)
+			pairs := []db.WordPair{
+				{ID: 1, UserID: 601, Word1: "uno", Word2: "one"},
+			}
+			chatID := int64(1002)
+			userID := int64(601)
+			session := manager.StartOrRestart(chatID, userID, pairs)
+			manager.SetCurrentMessageID(session, 77)
+
+			tt.apply(manager, session, chatID, userID)
+
+			stored := fetchGameSession(t, session.sessionID)
+			if stored.AttemptCount != tt.wantAttempts || stored.CorrectCount != tt.wantCorrect {
+				t.Fatalf("expected attempts=%d correct=%d, got attempts=%d correct=%d",
+					tt.wantAttempts, tt.wantCorrect, stored.AttemptCount, stored.CorrectCount)
+			}
+		})
+	}
+}
+
+func TestGameSessionPersistenceFinishUpdatesEndFields(t *testing.T) {
+	setupTestDB(t)
+
+	clock := &testClock{t: time.Date(2024, 3, 3, 11, 0, 0, 0, time.UTC)}
+	manager := NewGameManager(clock.Now)
+	pairs := []db.WordPair{
+		{ID: 1, UserID: 701, Word1: "uno", Word2: "one"},
+	}
+	chatID := int64(1003)
+	userID := int64(701)
+	session := manager.StartOrRestart(chatID, userID, pairs)
+	manager.SetCurrentMessageID(session, 88)
+	session.deck = nil
+
+	clock.Advance(10 * time.Minute)
+	manager.ResolveTextAttempt(chatID, userID, session.currentCard.Expected)
+
+	stored := fetchGameSession(t, session.sessionID)
+	if stored.EndedAt == nil || stored.EndedReason == nil || stored.DurationSeconds == nil {
+		t.Fatalf("expected end fields to be set")
+	}
+	if stored.EndedAt.UTC() != clock.t {
+		t.Fatalf("expected ended_at %v, got %v", clock.t, stored.EndedAt.UTC())
+	}
+	if *stored.EndedReason != "finished" {
+		t.Fatalf("expected ended_reason finished, got %q", *stored.EndedReason)
+	}
+	if *stored.DurationSeconds != int((10 * time.Minute).Seconds()) {
+		t.Fatalf("expected duration_seconds %d, got %d", int((10 * time.Minute).Seconds()), *stored.DurationSeconds)
+	}
+	if stored.AttemptCount != 1 || stored.CorrectCount != 1 {
+		t.Fatalf("expected attempts=1 correct=1, got attempts=%d correct=%d", stored.AttemptCount, stored.CorrectCount)
+	}
+}
+
+func TestGameSessionPersistenceTimeoutUpdatesEndFields(t *testing.T) {
+	setupTestDB(t)
+
+	clock := &testClock{t: time.Date(2024, 3, 4, 12, 0, 0, 0, time.UTC)}
+	manager := NewGameManager(clock.Now)
+	pairs := []db.WordPair{
+		{ID: 1, UserID: 801, Word1: "uno", Word2: "one"},
+	}
+	chatID := int64(1004)
+	userID := int64(801)
+	session := manager.StartOrRestart(chatID, userID, pairs)
+
+	clock.Advance(20 * time.Minute)
+	expired := manager.collectInactive(clock.t)
+	if len(expired) != 1 {
+		t.Fatalf("expected one expired session, got %d", len(expired))
+	}
+
+	stored := fetchGameSession(t, session.sessionID)
+	if stored.EndedAt == nil || stored.EndedReason == nil || stored.DurationSeconds == nil {
+		t.Fatalf("expected end fields to be set")
+	}
+	if stored.EndedAt.UTC() != clock.t {
+		t.Fatalf("expected ended_at %v, got %v", clock.t, stored.EndedAt.UTC())
+	}
+	if *stored.EndedReason != "timeout" {
+		t.Fatalf("expected ended_reason timeout, got %q", *stored.EndedReason)
+	}
+	if *stored.DurationSeconds != int((20 * time.Minute).Seconds()) {
+		t.Fatalf("expected duration_seconds %d, got %d", int((20 * time.Minute).Seconds()), *stored.DurationSeconds)
+	}
+	if stored.AttemptCount != 0 || stored.CorrectCount != 0 {
+		t.Fatalf("expected attempts=0 correct=0, got attempts=%d correct=%d", stored.AttemptCount, stored.CorrectCount)
+	}
+}
+
+func TestGameSessionPersistenceEndDoesNotOverwrite(t *testing.T) {
+	setupTestDB(t)
+
+	clock := &testClock{t: time.Date(2024, 3, 5, 13, 0, 0, 0, time.UTC)}
+	manager := NewGameManager(clock.Now)
+	pairs := []db.WordPair{
+		{ID: 1, UserID: 901, Word1: "uno", Word2: "one"},
+	}
+	session := manager.StartOrRestart(1005, 901, pairs)
+	session.attemptCount = 2
+	session.correctCount = 1
+
+	endFirst := clock.t.Add(5 * time.Minute)
+	persistSessionEnd(session, endFirst, "finished")
+
+	endSecond := clock.t.Add(20 * time.Minute)
+	persistSessionEnd(session, endSecond, "timeout")
+
+	stored := fetchGameSession(t, session.sessionID)
+	if stored.EndedAt == nil || stored.EndedReason == nil || stored.DurationSeconds == nil {
+		t.Fatalf("expected end fields to be set")
+	}
+	if stored.EndedAt.UTC() != endFirst {
+		t.Fatalf("expected ended_at %v, got %v", endFirst, stored.EndedAt.UTC())
+	}
+	if *stored.EndedReason != "finished" {
+		t.Fatalf("expected ended_reason finished, got %q", *stored.EndedReason)
+	}
+	if *stored.DurationSeconds != int((5 * time.Minute).Seconds()) {
+		t.Fatalf("expected duration_seconds %d, got %d", int((5 * time.Minute).Seconds()), *stored.DurationSeconds)
+	}
+	if stored.AttemptCount != 2 || stored.CorrectCount != 1 {
+		t.Fatalf("expected attempts=2 correct=1, got attempts=%d correct=%d", stored.AttemptCount, stored.CorrectCount)
+	}
+}
+
+func fetchGameSession(t *testing.T, sessionID uint) db.GameSession {
+	t.Helper()
+	var stored db.GameSession
+	if err := db.DB.First(&stored, sessionID).Error; err != nil {
+		t.Fatalf("failed to load game session: %v", err)
+	}
+	return stored
+}

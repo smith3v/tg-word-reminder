@@ -26,7 +26,7 @@ func InitDB(cfg config.DatabaseConfig) error {
 		logger.Error("failed to connect to database", "error", err)
 		return err
 	}
-	if err := DB.AutoMigrate(&WordPair{}, &UserSettings{}); err != nil {
+	if err := DB.AutoMigrate(&WordPair{}, &UserSettings{}, &GameSession{}); err != nil {
 		logger.Error("failed to auto-migrate database", "error", err)
 		return err
 	}
