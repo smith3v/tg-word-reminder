@@ -38,8 +38,9 @@ type Card struct {
 
 // GameSession tracks a single user's active game state.
 type GameSession struct {
-	chatID int64
-	userID int64
+	chatID    int64
+	userID    int64
+	sessionID uint
 
 	startedAt      time.Time
 	lastActivityAt time.Time
@@ -96,9 +97,11 @@ func (m *GameManager) StartOrRestart(chatID, userID int64, vocabPairs []db.WordP
 	deck := buildDeck(pairs)
 	shuffleDeck(deck)
 
+	sessionID := persistSessionStart(userID, now)
 	session := &GameSession{
 		chatID:          chatID,
 		userID:          userID,
+		sessionID:       sessionID,
 		startedAt:       now,
 		lastActivityAt:  now,
 		deck:            deck,
@@ -313,10 +316,13 @@ func (m *GameManager) ResolveTextAttempt(chatID, userID int64, userText string) 
 	}
 
 	if len(session.deck) == 0 {
+		persistSessionEnd(session, session.lastActivityAt, "finished")
 		result.statsText = formatStats(session)
 		delete(m.sessions, key)
 		return result
 	}
+
+	persistSessionCounts(session)
 
 	card := session.deck[0]
 	session.deck = session.deck[1:]
@@ -357,6 +363,8 @@ func (m *GameManager) ResolveRevealAttempt(chatID, userID int64, token string, m
 	session.lastActivityAt = m.now()
 	session.currentResolved = true
 	session.deck = append(session.deck, *session.currentCard)
+
+	persistSessionCounts(session)
 
 	card := session.deck[0]
 	session.deck = session.deck[1:]
@@ -403,6 +411,7 @@ func (m *GameManager) collectInactive(now time.Time) []expiredSession {
 			continue
 		}
 		if now.Sub(session.lastActivityAt) > InactivityTimeout {
+			persistSessionEnd(session, now, "timeout")
 			expired = append(expired, expiredSession{
 				chatID:    session.chatID,
 				statsText: formatStats(session),
@@ -533,4 +542,66 @@ func splitCommaTokens(input string) ([]string, bool) {
 		tokens = append(tokens, token)
 	}
 	return tokens, true
+}
+
+func persistSessionStart(userID int64, startedAt time.Time) uint {
+	if db.DB == nil {
+		return 0
+	}
+	startedAt = startedAt.UTC()
+	sessionDate := time.Date(startedAt.Year(), startedAt.Month(), startedAt.Day(), 0, 0, 0, 0, time.UTC)
+	session := db.GameSession{
+		UserID:      userID,
+		SessionDate: sessionDate,
+		StartedAt:   startedAt,
+	}
+	if err := db.DB.Create(&session).Error; err != nil {
+		logger.Error("failed to persist game session start", "user_id", userID, "error", err)
+		return 0
+	}
+	return session.ID
+}
+
+func persistSessionCounts(session *GameSession) {
+	if session == nil || session.sessionID == 0 || db.DB == nil {
+		return
+	}
+	if err := db.DB.Model(&db.GameSession{}).
+		Where("id = ? AND ended_at IS NULL", session.sessionID).
+		Updates(map[string]interface{}{
+			"attempt_count": session.attemptCount,
+			"correct_count": session.correctCount,
+		}).Error; err != nil {
+		logger.Error("failed to persist game session counts", "session_id", session.sessionID, "error", err)
+	}
+}
+
+func persistSessionEnd(session *GameSession, endedAt time.Time, reason string) {
+	if session == nil || session.sessionID == 0 || db.DB == nil {
+		return
+	}
+	endedAt = endedAt.UTC()
+	durationSeconds := durationFrom(session.startedAt, endedAt)
+	if err := db.DB.Model(&db.GameSession{}).
+		Where("id = ? AND ended_at IS NULL", session.sessionID).
+		Updates(map[string]interface{}{
+			"ended_at":         endedAt,
+			"ended_reason":     reason,
+			"duration_seconds": durationSeconds,
+			"attempt_count":    session.attemptCount,
+			"correct_count":    session.correctCount,
+		}).Error; err != nil {
+		logger.Error("failed to persist game session end", "session_id", session.sessionID, "error", err)
+	}
+}
+
+func durationFrom(startedAt, endedAt time.Time) int {
+	if startedAt.IsZero() || endedAt.IsZero() {
+		return 0
+	}
+	seconds := int(endedAt.Sub(startedAt).Seconds())
+	if seconds < 0 {
+		return 0
+	}
+	return seconds
 }

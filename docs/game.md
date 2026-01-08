@@ -222,7 +222,6 @@ To understand feature usage and capture sessions that start but never finish, re
 - `ended_reason` (text, nullable) — `finished` or `timeout`
 - `correct_count` (integer, not null, default 0)
 - `attempt_count` (integer, not null, default 0)
-- `created_at` (timestamp with time zone, not null, default now)
 
 **Write conditions**
 

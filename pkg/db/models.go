@@ -1,6 +1,8 @@
 // pkg/db/models.go
 package db
 
+import "time"
+
 type WordPair struct {
 	ID     uint   `gorm:"primaryKey"`
 	UserID int64  `gorm:"index;uniqueIndex:idx_user_word1"` // To keep pairs separate for each user
@@ -13,4 +15,16 @@ type UserSettings struct {
 	UserID          int64 `gorm:"index"`
 	PairsToSend     int   `gorm:"default:1"` // Default to sending 1 pair
 	RemindersPerDay int   `gorm:"default:1"` // Default to 1 reminder per day
+}
+
+type GameSession struct {
+	ID              uint      `gorm:"primaryKey"`
+	UserID          int64     `gorm:"index"`
+	SessionDate     time.Time `gorm:"type:date;not null"`
+	StartedAt       time.Time `gorm:"not null"`
+	EndedAt         *time.Time
+	DurationSeconds *int
+	EndedReason     *string
+	CorrectCount    int `gorm:"not null;default:0"`
+	AttemptCount    int `gorm:"not null;default:0"`
 }
