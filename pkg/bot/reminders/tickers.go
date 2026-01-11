@@ -1,4 +1,4 @@
-package bot
+package reminders
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/smith3v/tg-word-reminder/pkg/bot/game"
 	"github.com/smith3v/tg-word-reminder/pkg/db"
 	"github.com/smith3v/tg-word-reminder/pkg/logger"
 )
@@ -122,7 +123,7 @@ func sendReminders(ctx context.Context, b *bot.Bot, user db.UserSettings) {
 	if len(wordPairs) > 0 {
 		message := ""
 		for _, pair := range wordPairs {
-			message += PrepareWordPairMessage(pair.Word1, pair.Word2)
+			message += game.PrepareWordPairMessage(pair.Word1, pair.Word2)
 		}
 		_, err := b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID:    user.UserID,

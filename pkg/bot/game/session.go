@@ -1,4 +1,4 @@
-package bot
+package game
 
 import (
 	"context"
@@ -55,6 +55,20 @@ type GameSession struct {
 	currentToken     string
 }
 
+func (s *GameSession) CurrentCard() *Card {
+	if s == nil {
+		return nil
+	}
+	return s.currentCard
+}
+
+func (s *GameSession) CurrentToken() string {
+	if s == nil {
+		return ""
+	}
+	return s.currentToken
+}
+
 // GameManager manages active game sessions with thread-safe access.
 type GameManager struct {
 	mu       sync.Mutex
@@ -78,11 +92,15 @@ func NewGameManager(now func() time.Time) *GameManager {
 	}
 }
 
-var gameManager = NewGameManager(nil)
+var DefaultManager = NewGameManager(nil)
+
+func ResetDefaultManager(now func() time.Time) {
+	DefaultManager = NewGameManager(now)
+}
 
 // StartGameSweeper starts the inactivity sweeper for game sessions.
 func StartGameSweeper(ctx context.Context, sender MessageSender) {
-	gameManager.StartSweeper(ctx, sender)
+	DefaultManager.StartSweeper(ctx, sender)
 }
 
 // getSessionKey builds the map key for a user's active game session.
@@ -150,8 +168,8 @@ func (m *GameManager) SweepInactive(ctx context.Context, sender MessageSender) {
 	}
 }
 
-// selectRandomPairs loads up to limit random pairs for the user, matching /getpair's source.
-func selectRandomPairs(userID int64, limit int) ([]db.WordPair, error) {
+// SelectRandomPairs loads up to limit random pairs for the user, matching /getpair's source.
+func SelectRandomPairs(userID int64, limit int) ([]db.WordPair, error) {
 	var pairs []db.WordPair
 	query := db.DB.Where("user_id = ?", userID).Order("RANDOM()")
 	if limit > 0 {
@@ -265,59 +283,59 @@ func (m *GameManager) GetSession(chatID, userID int64) *GameSession {
 	return m.sessions[key]
 }
 
-type attemptResult struct {
-	handled         bool
-	correct         bool
-	promptMessageID int
-	card            Card
-	nextCard        *Card
-	nextToken       string
-	statsText       string
+type AttemptResult struct {
+	Handled         bool
+	Correct         bool
+	PromptMessageID int
+	Card            Card
+	NextCard        *Card
+	NextToken       string
+	StatsText       string
 }
 
-type revealResult struct {
-	handled         bool
-	notice          string
-	promptMessageID int
-	card            Card
-	nextCard        *Card
-	nextToken       string
-	statsText       string
+type RevealResult struct {
+	Handled         bool
+	Notice          string
+	PromptMessageID int
+	Card            Card
+	NextCard        *Card
+	NextToken       string
+	StatsText       string
 }
 
 // ResolveTextAttempt applies a typed answer and advances the session if possible.
-func (m *GameManager) ResolveTextAttempt(chatID, userID int64, userText string) attemptResult {
+func (m *GameManager) ResolveTextAttempt(chatID, userID int64, userText string) AttemptResult {
 	key := getSessionKey(chatID, userID)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	session := m.sessions[key]
 	if session == nil || session.currentCard == nil || session.currentResolved || session.currentMessageID == 0 {
-		return attemptResult{}
+		return AttemptResult{}
 	}
 
-	result := attemptResult{
-		handled:         true,
-		promptMessageID: session.currentMessageID,
-		card:            *session.currentCard,
+	result := AttemptResult{
+		Handled:         true,
+		PromptMessageID: session.currentMessageID,
+		Card:            *session.currentCard,
 	}
 
-	result.correct = matchesExpected(userText, session.currentCard.Expected, strings.Contains(session.currentCard.Shown, ","))
+	result.Correct = matchesExpected(userText, session.currentCard.Expected, strings.Contains(session.currentCard.Shown, ","))
 
 	session.attemptCount++
-	if result.correct {
+	if result.Correct {
 		session.correctCount++
 	}
 	session.lastActivityAt = m.now()
 	session.currentResolved = true
 
-	if !result.correct {
+	if !result.Correct {
 		session.deck = append(session.deck, *session.currentCard)
 	}
 
 	if len(session.deck) == 0 {
 		persistSessionEnd(session, session.lastActivityAt, "finished")
-		result.statsText = formatStats(session)
+		result.StatsText = formatStats(session)
 		delete(m.sessions, key)
 		return result
 	}
@@ -330,33 +348,33 @@ func (m *GameManager) ResolveTextAttempt(chatID, userID int64, userText string) 
 	session.currentResolved = false
 	session.currentMessageID = 0
 	session.currentToken = m.nextTokenLocked()
-	result.nextCard = &card
-	result.nextToken = session.currentToken
+	result.NextCard = &card
+	result.NextToken = session.currentToken
 
 	return result
 }
 
 // ResolveRevealAttempt validates and applies a reveal callback.
-func (m *GameManager) ResolveRevealAttempt(chatID, userID int64, token string, messageID int) revealResult {
+func (m *GameManager) ResolveRevealAttempt(chatID, userID int64, token string, messageID int) RevealResult {
 	key := getSessionKey(chatID, userID)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	session := m.sessions[key]
 	if session == nil {
-		return revealResult{notice: "Not active"}
+		return RevealResult{Notice: "Not active"}
 	}
 	if session.currentCard == nil || session.currentResolved {
-		return revealResult{notice: "Already resolved"}
+		return RevealResult{Notice: "Already resolved"}
 	}
 	if session.currentToken != token || session.currentMessageID != messageID {
-		return revealResult{notice: "Not active"}
+		return RevealResult{Notice: "Not active"}
 	}
 
-	result := revealResult{
-		handled:         true,
-		promptMessageID: session.currentMessageID,
-		card:            *session.currentCard,
+	result := RevealResult{
+		Handled:         true,
+		PromptMessageID: session.currentMessageID,
+		Card:            *session.currentCard,
 	}
 
 	session.attemptCount++
@@ -372,8 +390,8 @@ func (m *GameManager) ResolveRevealAttempt(chatID, userID int64, token string, m
 	session.currentResolved = false
 	session.currentMessageID = 0
 	session.currentToken = m.nextTokenLocked()
-	result.nextCard = &card
-	result.nextToken = session.currentToken
+	result.NextCard = &card
+	result.NextToken = session.currentToken
 
 	return result
 }
