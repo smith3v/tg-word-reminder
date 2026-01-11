@@ -1,4 +1,3 @@
-Engels,english
 aan,to/attached to
 aanbieden,to offer
 de aandacht,attention
@@ -27,6 +26,7 @@ afspreken,to make an appointment
 de afstand,distance
 afstuderen,to graduate
 afwassen,to do the dishes
+de agent,agent
 al,already
 algemeen,general
 alle,all
@@ -44,15 +44,23 @@ anders,different
 de angst,fear
 het antwoord,answer
 antwoorden,to answer
+de arbeid,labor
 de arbeider,worker
+het argument,argument
+de arm,arm
+het artikel,article
 het aspect,aspect
 de auteur,author
 automatisch,automatically
+de baas,boss
 de baby,baby
 bang,afraid
+de bank,bank
 de basis,base
+het bed,bed
 het bedrijf,company
 het beeld,statue
+het been,leg
 het begin,get started
 beginnen,"to start, begin"
 het begrip,understanding
@@ -60,6 +68,8 @@ behalve,except
 de behandeling,therapy
 de behoefte,need
 beide,both
+het belang,interest
+het beleid,policy
 bellen,to call
 beneden,down
 bepaald,determined
@@ -79,12 +89,15 @@ de beurt,turn
 bevatten,to contain
 bewegen,to move
 de beweging,movement
+het bewijs,proof
 bewust,conscious
 bezig,busy
+het bezit,possession
 het bezoek,visit
 beïnvloeden,to influence
 het bier,beer
 bij,at
+de bijdrage,contribution
 bijna,almost (nearly)
 bijten,to bite
 bijvoorbeeld,for example
@@ -108,10 +121,12 @@ de boog,bow
 de boom,tree
 boos,angry
 de boot,boat
+het bord,plate
 de borst,chest
 het bos,forest
 boven,upstairs
 bovendien,moreover
+de brand,fire
 breed,wide
 brengen,to bring
 de brief,letter
@@ -127,190 +142,59 @@ buitenlands,foreign
 het bureau,desk
 de burgemeester,mayor
 burgerlijk,civil
+de bus,bus
 de buurt,neighborhood
+het café,cafe
 de categorie,category
 het centrum,centre
+de collega,colleague
+de combinatie,combination
 de communicatie,communication
 de computer,computer
 de conclusie,conclusion
 de consequentie,consequence
+het contact,contact
+de crisis,crisis
 cultureel,cultural
+de cultuur,culture
 daar,there
 daarna,after that
 daarom,therefore
 de dag,day
 dagelijks,daily
+het dak,roof
 dan,then
 danken,to thank
 dansen,to dance
-dat,that (for het words)
+dat,that (het words)
 de,the
-de agent,agent
-de arbeid,labor
-de arm,arm
-de baas,boss
-de bank,bank
-de bijdrage,contribution
-de boom,tree
-de brand,fire
-de bus,bus
-de collega,colleague
-de combinatie,combination
-de crisis,crisis
-de cultuur,culture
-de deken,blanket
-de directeur,director
-de discussie,discussion
-de dochter,daughter
-de dokter,doctor
-de droom,dream
-de economie,economy
-de factor,factor
-de fiets,bicycle
-de fout,mistake
-de functie,function
-de gedachte,thought
-de gelegenheid,opportunity
-de generatie,generation
-de geschiedenis,history
-de gevangenis,"jail, prison"
-de gewoonte,habit
-de goederen,goods
-de golf,wave
-de groei,growth
-de groep,group
-de haast,rush
-de heuvel,hill
-de hoop,pile
-de hut,hut
-de informatie,information
-de kans,opportunity
-de kant,side
-de kat,cat
-de keel,throat
-de kenmerken,characteristics
-de kern,core
-de kist,chest
-de klas,class
-de kleur,color
-de knie,knee
-de koffer,suitcase
-de koningin,queen
-de kop,headline
-de kring,circle
-de kunstenaar,artist
-de leeftijd,age
-de leerling,pupil
-de leider,leader
-de liefde,love
-de literatuur,literature
-de lucht,sky
-de luitenant,lieutenant
-de maaltijd,meal
-de maan,moon
-de machine,machine
-de moed,courage
-de mogelijkheid,possibility
-de mond,mouth
-de nacht,night
-de natuur,nature
-de nek,neck
-de neus,nose
-de noodzaak,need
-de olie,oil
-de ontmoeting,meeting
-de oom,uncle
-de oorlog,war
-de opvatting,view
-de partner,partner
-de patiënt,patient
-de periode,period
-de plaat,plate
-de plant,plant
-de plek,place
-de poot,leg
-de president,president
-de productie,production
-de psychologie,psychology
-de radio,radio
-de reeks,series
-de reis,"trip, journey"
-de relatie,relationship
-de rest,rest
-de rij,queue
-de rivier,river
-de rol,role
-de ruimte,space
-de rust,peace/calm
-de samenwerking,cooperation
-de schade,damage
-de schouder,shoulder
-de schrijver,writer
-de seconde,second (time)
-de sector,sector
-de sigaret,cigarette
-de slaapkamer,bedroom
-de slag,battle
-de sleutel,key
-de snelheid,speed
-de stap,step
-de stilte,silence
-de stoel,chair
-de stof,dust
-de straf,punishment
-de streek,region
-de tak,branch
-de techniek,technic
-de tekst,text
-de telefoon,phone
-de term,term
-de theorie,theory
-de tong,tongue
-de trein,train
-de trots,pride
-de twijfel,doubt
-de vis,fish
-de visie,vision
-de voet,foot
-de voorzitter,chairman
-de vorming,formation
-de vraag,question
-de vreugde,joy
-de vriendin,girlfriend
-de waarde,value
-de waarheid,truth
-de wand,wall
-de wangen,cheeks
-de wens,wish
-de wereld,world
-de wijn,wine
-de wind,wind
-de zaak,"matter, business"
-de zak,bag
-de zee,sea
-de zekerheid,security
-de ziekte,disease
-de zin,sentence
-de zuster,sister
+het deel,part
 definitief,final
+de deken,blanket
 denken,to think
 derde,third
+het detail,detail
 de deur,door
-deze,this (for de words)
+deze,this (de words)
 dezelfde,the same
 dichtbij,nearby
 "dichtbij, ver weg","close by, far away"
 dichtdoen,to close
 de dienst,shift
 diep,deep
+het dier,animal
 dik,fat
 "dik, dun","fat, thin"
 het ding,thing
 direct,directly
-dit,this (for het words)
+de directeur,director
+de discussie,discussion
+dit,this (het words)
+de dochter,daughter
 het doel,target
 de doelstelling,"goal, objective"
 doen,to do
+de dokter,doctor
 dom,stupid
 donker,dark
 "donker, licht","dark, light"
@@ -325,6 +209,7 @@ drinken,to drink
 dromen,to dream
 droog,dry
 "droog, nat","dry, wet"
+de droom,dream
 de druk,pressure
 dubbel,double
 duidelijk,clearly
@@ -334,6 +219,7 @@ dus,so (conclusion)
 duur,expensive
 dwars,transverse
 echter,however
+de economie,economy
 een,a
 een paar,a couple
 een poos,a while
@@ -349,6 +235,7 @@ de eigenaar,owner
 eigenlijk,actually
 de eigenschap,charachteristic
 het eiland,island
+het eind,end
 eindelijk,finally
 eindeloos,endless
 eindigen,to end
@@ -358,6 +245,7 @@ de emotie,emotion
 emotioneel,emotional
 en,and
 de energie,energy
+Engels,english
 enkel,only
 enorm,enormous
 er,there (exists)
@@ -369,10 +257,12 @@ even,for a while
 het evenwicht,balance
 het experiment,experiment
 de fabriek,factory
+de factor,factor
 de familie,family
 de fase,phase
 het feest,party
 het feit,fact
+de fiets,bicycle
 de figuur,figure
 fijn,nice
 de film,movie
@@ -381,16 +271,22 @@ de fles,bottle
 flink,hefty
 formuleren,to formulate
 de foto,photo
+de fout,mistake
 het fruit,fruit
+de functie,function
 fundamenteel,fundamentally
 gaan,to go
 de gang,corridor
 de gast,guest
+het gat,hole
 gauw,soon
+het gebied,area
 geboren,born
 het gebouw,building
 gebruik,to use
 gebruiken,to use
+de gedachte,thought
+het gedeelte,part
 het gedicht,poem
 het gedrag,behaviour
 geef,give
@@ -399,24 +295,35 @@ geheel,whole
 het geheim,secret
 het geheugen,memory
 gek,crazy
+het geld,money
 geleden,ago
+de gelegenheid,opportunity
 gelijk,equal
+het geloof,"faith, belief"
 het geluid,sound
 het geluk,luck
 gelukkig,happy
+het gemak,ease
 gemakkelijk,easy
 gemeen,mean
+de generatie,generation
 genoeg,enough
+de geschiedenis,history
 het gesprek,conversation
 de geur,smell
 het gevaar,danger
 gevaarlijk,dangerous
 het geval,case
+de gevangenis,"jail, prison"
 geven,to give
+het gevoel,feeling
 het gevolg,consequence
+het geweld,violence
 geweldig,"awesome, great"
 gewoon,just
 gewoonlijk,usually
+de gewoonte,habit
+het gezag,authority
 gezellig,cozy
 het gezicht,face
 het gezin,family
@@ -428,8 +335,10 @@ de glimlach,smile
 de godsdienst,religion
 goed,good
 "goed, slecht","good, bad"
+de goederen,goods
 goedkoop,cheap
 "goedkoop, duur","cheap, expensive"
+de golf,wave
 de gordijnen,curtains
 gouden,golden
 graag,gladly
@@ -437,17 +346,21 @@ het gras,grass
 de greep,grip
 de grens,border
 grijs,gray
+de groei,growth
 groeien,to grow
 groen,green
+de groep,group
 "groot, klein","big, small"
 gunstig,favorable
 haar,her
+de haast,rush
 half,half
 de hals,neck
 de hand,hand
 de handeling,act
 hard,hard
 "hard, zacht","hard, soft"
+het hart,heart
 hebben,to have
 heel,very
 heen,away
@@ -460,84 +373,9 @@ hem,him
 herhalen,to repeat
 de herinnering,reminder
 het,it
-Holland,Holland
-het argument,argument
-het artikel,article
-het bed,bed
-het been,leg
-het belang,interest
-het beleid,policy
-het bewijs,proof
-het bezit,possession
-het bord,plate
-het café,cafe
-het contact,contact
-het dak,roof
-het deel,part
-het detail,detail
-het dier,animal
-het eind,end
-het gat,hole
-het gebied,area
-het gedeelte,part
-het geld,money
-het geloof,"faith, belief"
-het gemak,ease
-het gevoel,feeling
-het geweld,violence
-het gezag,authority
-het hart,heart
-het hoofd,head
-het hotel,hotel
-het huis,house
-het idee,idea
-het individu,individual
-het initiatief,initiative
-het instrument,instrument
-het kind,child
-het landschap,landscape
-het lichaam,body
-het licht,light
-liefst,most preferably
-het lijk,corpse
-het nummer,number
-het onderscheid,"difference, distinction"
-het onderwerp,"topic, subject"
-het onderzoek,research
-het ongeluk,accident
-het oog,eye
-het oor,ear
-het oordeel,judgement
-het orgaan,organ
-het overleg,consultation
-het pak,business suit
-het personeel,staff
-het proces,process
-het product,product
-het project,project
-het restaurant,restaurant
-het resultaat,result
-het slot,key lock
-het soort,kind
-het spoor,track
-het station,station
-het vak,"field, subject"
-het veld,field
-het verband,bandage
-het verdriet,sadness
-het verlangen,desire
-het verleden,past
-het verlies,loss
-het verzoek,request
-het voedsel,food
-het voorhoofd,forehead
-het voorwerp,object
-het wapen,weapon
-het water,water
-het woord,word
-het zand,sand
 hetzelfde,the same
 "hetzelfde, anders","the same, different"
+de heuvel,hill
 hier,here
 hij,he
 historisch,historical
@@ -545,30 +383,41 @@ hoe,how
 de hoed,hat
 de hoek,corner
 hoeven,to need to
+Holland,Holland
 de hond,dog
 de honger,hungry
+het hoofd,head
 hoog,high
 "hoog, laag","high, low"
 de hoogte,height
+de hoop,pile
 hopen,to hope
 horen,to hear
+het hotel,hotel
 houden,"to keep, hold"
 de houding,attitude
+het huis,house
 de huisarts,doctor
 de hulp,help
+de hut,hut
 het huwelijk,wedding
 het ideaal,ideal
+het idee,idea
 iedereen,everyone
 iemand,someone
 ik,I
 in,in
 inderdaad,indeed
+het individu,individual
 individueel,individually
 de indruk,impression
+de informatie,information
 ingaan,to enter
+het initiatief,initiative
 inleveren,to hand in
 inmiddels,in the meantime
 instappen,to get in
+het instrument,instrument
 interessant,interesting
 interesseren,to be interested
 internationaal,international
@@ -581,7 +430,7 @@ de jas,jacket
 je,"you (single, informal, subject)"
 de jeugd,youth
 jezelf,yourself
-jij,"you (sg., informal, stressed)"
+jij,"you (single, informal, stressed)"
 jong,young
 "jong, oud","young, old"
 de jongeman,young man
@@ -594,32 +443,46 @@ de kaas,cheese
 kalm,calm
 de kamer,room
 het kamp,camp
+de kans,opportunity
+de kant,side
 het kantoor,office
 kapot,broken
 het karakter,character
 de kast,closet
+de kat,cat
+de keel,throat
 de keer,times
+de kenmerken,characteristics
 kennen,to know
 de kerk,church
+de kern,core
 de keuken,kitchen
 de keuze,choice
 kiezen,to select
 kijken,to look
 de kilometer,kilometers
+het kind,child
+de kist,chest
 klaar,ready
 de klacht,complaint
 de klant,customer
 de klap,blow
+de klas,class
 klassiek,classic
 het kleed,carpet
 klein,small
 de kleren,clothes
+de kleur,color
 klimmen,to climb
 knap,good looking
+de knie,knee
 koel,cool
+de koffer,suitcase
 de koffie,coffee
 komen,to come
 de koning,king
+de koningin,queen
+de kop,headline
 kopen,to buy
 kort,short
 kosten,to cost
@@ -627,8 +490,10 @@ koud,cold
 de kracht,power
 krachtige,powerful
 krijgen,"to get, receive"
+de kring,circle
 het kruis,cross
 kunnen,can/to be able to
+de kunstenaar,artist
 de kust,coast
 de kwaliteit,quality
 kwijt,lost
@@ -636,6 +501,7 @@ laag,low
 laat,late
 laatste,last
 lachen,laugh
+het landschap,landscape
 lang,long
 "lang, kort","tall, short"
 langs,along
@@ -645,9 +511,12 @@ langzaam,slowly
 de last,burden
 laten,to let
 later,later
+de leeftijd,age
 leeg,empty
 de leer,leather
+de leerling,pupil
 leiden,to lead
+de leider,leader
 de leiding,leadership
 lekker,"tasty, nice"
 "lekker, vies","tasty, disgusting"
@@ -659,23 +528,34 @@ leuk,fun
 leven,to live
 leveren,to deliver
 lezen,to read
+het lichaam,body
+het licht,light
 het lid,member
 lief,sweet
+de liefde,love
+liefst,most preferably
 liggen,to lie
+het lijk,corpse
 de lijst,list
 links,left
 de lip,lip
+de literatuur,literature
 logisch,logical
 lopen,to walk
 los,loose
+de lucht,sky
 luisteren,to listen
+de luitenant,lieutenant
 lukken,"to succeed, work out"
 de maag,stomach
+de maaltijd,meal
+de maan,moon
 de maand,month
 maar,but
 de maat,measure
 de maatregel,measure
 de maatschappij,society
+de machine,machine
 de macht,power
 maken,to make
 makkelijk,easy
@@ -717,6 +597,7 @@ misschien,maybe
 missen,to miss
 modern,modern
 moe,tired
+de moed,courage
 de moeder,mother
 moeilijk,difficult
 "moeilijk, makkelijk","difficult, easy"
@@ -724,8 +605,10 @@ de moeilijkheid,difficulty
 de moeite,effort
 moeten,should/must
 mogelijk,possible
+de mogelijkheid,possibility
 mogen,to be allowed to/may
 het moment,moment
+de mond,mouth
 mooi,"beautiful, pretty"
 "mooi, lelijk","pretty, ugly"
 het motief,motive
@@ -736,9 +619,11 @@ na,after
 de naam,name
 naar,to
 naast,next to
+de nacht,night
 namelijk,namely
 nat,wet
 nationaal,national
+de natuur,nature
 natuurlijk,of course
 nauwelijks,barely
 nauwkeurig,accurate
@@ -747,9 +632,11 @@ neerleggen,to put down
 neerzetten,to put down
 negatief,negative
 "negatief, positief","negative, positive"
+de nek,neck
 nemen,to take
 nergens,nowhere
 net,just
+de neus,nose
 niemand,nobody
 niet,not
 nieuw,new
@@ -759,17 +646,20 @@ noch,neither
 nodig,required
 nog,yet
 nogal,quite
+de noodzaak,need
 noodzakelijk,necessary
 het noorden,north
 normaal,normal
 nou,well
 nu,now
+het nummer,number
 nuttig,helpful
 het object,object
 of,or
 officieel,officially
 de officier,officer
 oktober,October
+de olie,oil
 om,around
 omgaan met,to handle
 de omgeving,surroundings
@@ -777,7 +667,11 @@ omhoog,up
 de omstandigheid,circumstance
 ondanks,despite
 onder,below
+het onderscheid,"difference, distinction"
+het onderwerp,"topic, subject"
 het onderwijs,education
+het onderzoek,research
+het ongeluk,accident
 ongetwijfeld,"undoubtedly, surely"
 ongeveer,approximately
 onmiddellijk,immediately
@@ -785,10 +679,16 @@ onmogelijk,impossible
 ons/onze,our
 ontbreken,lack
 ontmoeten,to meet
+de ontmoeting,meeting
 de ontwikkeling,development
 onverwacht,unexpected
+het oog,eye
 ooit,ever
 ook,also
+de oom,uncle
+het oor,ear
+het oordeel,judgement
+de oorlog,war
 de oorzaak,cause
 op,on
 opbellen,to call up
@@ -808,7 +708,9 @@ de opmerking,comment
 opnieuw,again
 opschrijven,to write down
 opstaan,to get up
+de opvatting,view
 de opvoeding,education
+het orgaan,organ
 de organisatie,organization
 organiseren,to organize
 oud,old
@@ -818,27 +720,37 @@ de overeenkomst,agreement
 de overheid,government
 overig,"other, remaining"
 overigens,moreover
+het overleg,consultation
 oversteken,to cross
 het paard,horse
 het pad,path
+het pak,business suit
 pakken,to grab
 het papier,paper
+de partner,partner
 pas,only
 passeren,pass
+de patiënt,patient
 het patroon,pattern
+de periode,period
 de pers,press
+het personeel,staff
 de persoon,person
 persoonlijk,personally
 de persoonlijkheid,personality
 de pijn,pain
 pijnlijk,painful
+de plaat,plate
 de plaats,place
 de plaatsen,place
 het plan,plan
+de plant,plant
+de plek,place
 het plezier,pleasure
 plotseling,suddenly
 de poging,attempt
 de politie,law enforcement
+de poot,leg
 de positie,position
 positief,positive
 de pot,pot
@@ -846,18 +758,25 @@ prachtig,magnificent
 de praktijk,practice
 praktisch,practical
 praten,to talk
+de president,president
 prettig,pleasant
 de prijs,price
 het probleem,problem
 het procent,per cent
+het proces,process
 produceren,to produce
+het product,product
+de productie,production
 het programma,program
+het project,project
 de provincie,province
+de psychologie,psychology
 psychologisch,psychological
 de psycholoog,psychologist
 publiceren,to publish
 de raad,advice
 het raam,window
+de radio,radio
 de rand,edge
 de reactie,reaction
 realiseren,realize
@@ -865,65 +784,92 @@ recht,straight
 de rechter,judge
 redelijk,"reasonable, reasonably"
 de reden,reason
+de reeks,series
 de regel,rule
 de regeling,regulation
 de regering,government
+de reis,"trip, journey"
 reizen,to travel
 de rekening,bill
+de relatie,relationship
 relatief,relatively
 rennen,To run
+de rest,rest
+het restaurant,restaurant
+het resultaat,result
 richting,towards
+de rij,queue
 rijden,to drive
 rijk,rich
 "rijk, arm","rich, poor"
 het risico,risk
+de rivier,river
+de rol,role
 rond,round
 rood,red
 de rook,smoke
 rug,back
 ruiken,to smell
 ruim,spacious
+de ruimte,space
+de rust,peace/calm
 rusten,to rest
 rustig,quiet
 samen,together
 de samenleving,society
 samenwerken,to cooperate
+de samenwerking,cooperation
 samenwonen,to live together
+de schade,damage
 de schaduw,shadow
 de schoen,shoe
 de school,school
 schoon,clean
 "schoon, vies","clean, dirty"
 schoonmaken,to clean
+de schouder,shoulder
 schrijven,to write
+de schrijver,writer
 de schuld,debt
+de seconde,second (time)
+de sector,sector
 serieus,serious
 de sfeer,ambiance
+de sigaret,cigarette
 sinds,since
 de slaap,sleep
+de slaapkamer,bedroom
+de slag,battle
 slapen,to sleep
 slecht,bad
+de sleutel,key
+het slot,key lock
 sluiten,to close
 de smaak,taste
 smal,narrow
 "smal, breed","narrow, wide"
 de sneeuw,snow
 snel,fast
+de snelheid,speed
 sociaal,social
 de soldaat,soldier
 sommige,some
 soms,sometimes
+het soort,kind
 de spanning,"tension, stress"
 speciaal,special
 specifiek,specific
 het spel,game
 spelen,to play
 de spiegel,mirror
+het spoor,track
 spreken,to speak
 staan,to stand
 de staat,state
 de stad,city
+de stap,step
 stappen,to step
+het station,station
 de steen,stone
 de stem,voice
 de ster,star
@@ -933,11 +879,16 @@ stijf,stiff
 stijgen,to rise
 de stijl,style
 stil,quiet
+de stilte,silence
 de stoel,chair
+de stoel,chair
+de stof,dust
 stoppen,to stop
 de straat,street
+de straf,punishment
 strak,tight
 het strand,beach
+de streek,region
 strekken,stretch
 streng,strict
 de stroom,flow
@@ -954,18 +905,23 @@ het symbool,symbol
 het systeem,system
 de taal,language
 de tafel,table
+de tak,branch
 de tand,tooth
 de tante,aunt
 te,too
+de techniek,technic
 technisch,technical
 tegen,against
 tegenkomen,to come across (somebody)/walk into (somebody)
 tegenover,opposite
 de tegenstander,opponent
 de tegenstelling,contrary
+de tekst,text
+de telefoon,phone
 de televisie,television
 tenminste,at least
 tenslotte,finally
+de term,term
 het terras,terrace
 het terrein,terrain
 terug,back
@@ -974,6 +930,7 @@ terwijl,while
 tevreden,satisfied
 de thee,tea
 theoretisch,theoretically
+de theorie,theory
 thuis,at home
 tien,ten
 de tijd,time
@@ -985,6 +942,7 @@ de toekomst,future
 toekomstig,future
 toen,then (past)
 toevallig,coincidentally
+de tong,tongue
 de top,top
 tot,until
 totaal,total
@@ -992,11 +950,14 @@ de traan,tear
 de traditie,tradition
 traditioneel,traditional
 de trap,stairs
+de trein,train
 de troep,mess
+de trots,pride
 trouwen,to marry
 trouwens,"besides, by the way"
 tussen,in between
 twee,two
+de twijfel,doubt
 typisch,typical
 u,"you (single, formal)"
 de uitdrukking,expression
@@ -1012,6 +973,7 @@ de universiteit,university
 het uur,hour
 vaak,often
 de vader,father
+het vak,"field, subject"
 vallen,fall
 van,from / of
 vandaag,today
@@ -1021,18 +983,21 @@ vechten,to fight
 veel,many
 "veel, weinig","much, little"
 veilig,safe
+het veld,field
 de vent,guy
 ver,far
 veranderen,to change
 de verandering,change
 de verantwoordelijkheid,responsibility
 verbaasd,surprised
+het verband,bandage
 de verbazing,surprise
 verbieden,to forbid
 verder,further
 verdergaan,to continue
 verdienen,to earn
 de verdieping,floor
+het verdriet,sadness
 verdrietig,sad
 de vereniging,"association, club"
 de vergadering,meeting
@@ -1042,6 +1007,9 @@ het verhaal,story
 de verhouding,ratio
 de verklaring,statement
 verkopen,to sell
+het verlangen,desire
+het verleden,past
+het verlies,loss
 verliezen,to lose
 het verschil,difference
 de verschillen,differences
@@ -1057,6 +1025,7 @@ vertrekken,to leave/depart
 vervolgens,thereafter
 vervullen,fulfill
 de verwachting,expectation
+het verzoek,request
 via / door,through
 vier,four
 vieren,to celebrate
@@ -1064,6 +1033,8 @@ de vijand,enemy
 vijf,five
 vinden,to find
 de vinger,finger
+de vis,fish
+de visie,vision
 vlak,flat
 het vlees,meat
 vliegen,fly
@@ -1072,7 +1043,9 @@ de vlucht,flight
 vluchten,to flee
 vlug / snel,quickly
 vochtig,moist
+het voedsel,food
 voelen,to feel
+de voet,foot
 vol,full
 voldoende,enough
 volgende,next
@@ -1084,17 +1057,24 @@ vooral,mostly
 het voorbeeld,example
 voordat,before
 het voordeel,benefit
+het voorhoofd,forehead
 de voorkeur,preference
 het voorstel,proposal
+het voorwerp,object
 voorzichtig,careful
+de voorzitter,chairman
 vorige,"last, previous"
 "vorige, volgende","last, next"
+de vorming,formation
+de vraag,question
 vragen,to ask
 de vrede,peace
 vreemd,strange
 vreselijk,horrible
+de vreugde,joy
 de vriend,friend
 vriendelijk,friendly
+de vriendin,girlfriend
 vrij,free
 de vrijheid,freedom
 vrijwel,almost (very close)
@@ -1106,15 +1086,21 @@ de vrucht,fruit
 vullen,to fill
 het vuur,fire
 waar,true
+de waarde,value
+de waarheid,truth
 waarschijnlijk,probably
 wachten,to wait
 wakker,awake
+de wand,wall
+de wangen,cheeks
 wanneer,when
+het wapen,weapon
 warm,warm
 "warm, koud","warm, cold"
 de warmte,warmth
 wassen,to wash
 wat,what
+het water,water
 we,we (unstressed)
 de week,week
 weg,away
@@ -1124,7 +1110,9 @@ weggooien,to throw away
 weinig,"little, few"
 welk,which
 wellicht,perhaps
+de wens,wish
 wensen,to wish
+de wereld,world
 het werk,work
 de werkelijkheid,reality
 werken,to work
@@ -1136,21 +1124,29 @@ de wetenschap,science
 wetenschappelijk,scientific
 wij,we (stressed)
 wijd,wide
+de wijn,wine
 wild,wild
 willen,to want
+de wind,wind
 winnen,to win
 de winst,profit
 de winter,winter
 wit,white
 de wolk,cloud
 de woning,house
+het woord,word
 worden,to become
+de zaak,"matter, business"
 de zaal,hall
 zacht,soft
+de zak,bag
 de zaken,affairs
+het zand,sand
+de zee,sea
 "zeer, heel",very
 zeggen,to say
 zeker,sure
+de zekerheid,security
 zelf,self
 zelfs,even
 zenden,to send
@@ -1159,9 +1155,11 @@ zetten,to put
 zichzelf,himself
 ziek,sick
 het ziekenhuis,hospital
+de ziekte,disease
 zien,to see
 zij,she
 zijn,to be
+de zin,sentence
 zingen,to sing
 zitten,to sit
 zo,so
@@ -1180,6 +1178,7 @@ zorgen,to care
 zouden,would
 zoveel,that much
 zullen,shall/will
+de zuster,sister
 zwaar,heavy
 "zwaar, licht","heavy, light"
 zwak,weak
