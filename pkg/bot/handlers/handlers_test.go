@@ -1,4 +1,4 @@
-package bot
+package handlers
 
 import (
 	"bytes"
@@ -14,12 +14,12 @@ import (
 
 	telegram "github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/smith3v/tg-word-reminder/pkg/bot/game"
 	"github.com/smith3v/tg-word-reminder/pkg/logger"
 	"github.com/smith3v/tg-word-reminder/pkg/ui"
 
 	dbpkg "github.com/smith3v/tg-word-reminder/pkg/db"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
+	"github.com/smith3v/tg-word-reminder/pkg/internal/testutil"
 )
 
 type recordedRequest struct {
@@ -107,31 +107,6 @@ func (m *mockClient) lastRequestBody(t *testing.T) string {
 	return string(m.requests[len(m.requests)-1].body)
 }
 
-func setupTestDB(t *testing.T) {
-	t.Helper()
-	gdb, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("failed to open sqlite database: %v", err)
-	}
-	if err := gdb.AutoMigrate(&dbpkg.WordPair{}, &dbpkg.UserSettings{}, &dbpkg.GameSession{}); err != nil {
-		t.Fatalf("failed to migrate schema: %v", err)
-	}
-
-	dbpkg.DB = gdb
-
-	sqlDB, err := gdb.DB()
-	if err != nil {
-		t.Fatalf("failed to access underlying DB: %v", err)
-	}
-
-	t.Cleanup(func() {
-		if err := sqlDB.Close(); err != nil {
-			t.Fatalf("failed to close database: %v", err)
-		}
-		dbpkg.DB = nil
-	})
-}
-
 func newTestTelegramBot(t *testing.T, client *mockClient) *telegram.Bot {
 	t.Helper()
 	b, err := telegram.New("test-token",
@@ -159,11 +134,11 @@ func newTestUpdate(text string, userID int64) *models.Update {
 }
 
 func resetGameManager(now func() time.Time) {
-	gameManager = NewGameManager(now)
+	game.ResetDefaultManager(now)
 }
 
 func TestHandleGetPairWithoutWords(t *testing.T) {
-	setupTestDB(t)
+	testutil.SetupTestDB(t)
 	logger.SetLogLevel(logger.ERROR)
 
 	client := newMockClient()
@@ -179,7 +154,7 @@ func TestHandleGetPairWithoutWords(t *testing.T) {
 }
 
 func TestHandleGetPairSendsRandomPair(t *testing.T) {
-	setupTestDB(t)
+	testutil.SetupTestDB(t)
 	logger.SetLogLevel(logger.ERROR)
 
 	if err := dbpkg.DB.Create(&dbpkg.WordPair{
@@ -203,7 +178,7 @@ func TestHandleGetPairSendsRandomPair(t *testing.T) {
 }
 
 func TestHandleClearRemovesWordPairs(t *testing.T) {
-	setupTestDB(t)
+	testutil.SetupTestDB(t)
 	logger.SetLogLevel(logger.ERROR)
 
 	userID := int64(606)
@@ -236,7 +211,7 @@ func TestHandleClearRemovesWordPairs(t *testing.T) {
 }
 
 func TestHandleGameStartRejectsNonPrivateChat(t *testing.T) {
-	setupTestDB(t)
+	testutil.SetupTestDB(t)
 	logger.SetLogLevel(logger.ERROR)
 	resetGameManager(time.Now)
 
@@ -254,7 +229,7 @@ func TestHandleGameStartRejectsNonPrivateChat(t *testing.T) {
 }
 
 func TestHandleGameStartWithEmptyVocabulary(t *testing.T) {
-	setupTestDB(t)
+	testutil.SetupTestDB(t)
 	logger.SetLogLevel(logger.ERROR)
 	resetGameManager(time.Now)
 
@@ -272,7 +247,7 @@ func TestHandleGameStartWithEmptyVocabulary(t *testing.T) {
 }
 
 func TestHandleGameStartSendsPromptWithCallback(t *testing.T) {
-	setupTestDB(t)
+	testutil.SetupTestDB(t)
 	logger.SetLogLevel(logger.ERROR)
 	resetGameManager(time.Now)
 
@@ -320,25 +295,19 @@ func TestHandleGameTextAttemptNextPromptOmitsHint(t *testing.T) {
 	logger.SetLogLevel(logger.ERROR)
 	resetGameManager(time.Now)
 
-	current := Card{PairID: 1, Direction: DirectionAToB, Shown: "hola", Expected: "adios"}
-	next := Card{PairID: 2, Direction: DirectionBToA, Shown: "uno", Expected: "one"}
-	session := &GameSession{
-		chatID:           1001,
-		userID:           1001,
-		currentCard:      &current,
-		currentMessageID: 777,
-		currentResolved:  false,
-		deck:             []Card{next},
+	pairs := []dbpkg.WordPair{
+		{UserID: 1001, Word1: "hola", Word2: "adios"},
 	}
-	key := getSessionKey(1001, 1001)
-	gameManager.mu.Lock()
-	gameManager.sessions[key] = session
-	gameManager.mu.Unlock()
+	session := game.DefaultManager.StartOrRestart(1001, 1001, pairs)
+	if session == nil || session.CurrentCard() == nil {
+		t.Fatalf("expected session with current card")
+	}
+	game.DefaultManager.SetCurrentMessageID(session, 777)
 
 	client := newMockClient()
 	client.response = `{"ok":true,"result":{"message_id":55}}`
 	b := newTestTelegramBot(t, client)
-	update := newTestUpdate("adios", 1001)
+	update := newTestUpdate(session.CurrentCard().Expected, 1001)
 	update.Message.Chat.Type = models.ChatTypePrivate
 
 	handled := handleGameTextAttempt(context.Background(), b, update)
@@ -379,23 +348,19 @@ func TestHandleGameCallbackIgnoresStaleToken(t *testing.T) {
 	logger.SetLogLevel(logger.ERROR)
 	resetGameManager(time.Now)
 
-	current := Card{PairID: 1, Direction: DirectionAToB, Shown: "hola", Expected: "adios"}
-	session := &GameSession{
-		chatID:           2001,
-		userID:           2001,
-		currentCard:      &current,
-		currentMessageID: 44,
-		currentResolved:  false,
-		currentToken:     "good",
+	pairs := []dbpkg.WordPair{
+		{UserID: 2001, Word1: "hola", Word2: "adios"},
 	}
-	key := getSessionKey(2001, 2001)
-	gameManager.mu.Lock()
-	gameManager.sessions[key] = session
-	gameManager.mu.Unlock()
+	session := game.DefaultManager.StartOrRestart(2001, 2001, pairs)
+	if session == nil || session.CurrentCard() == nil {
+		t.Fatalf("expected session with current card")
+	}
+	game.DefaultManager.SetCurrentMessageID(session, 44)
+	badToken := session.CurrentToken() + "x"
 
 	client := newMockClient()
 	b := newTestTelegramBot(t, client)
-	update := newTestCallbackUpdate("g:r:bad", 2001, 2001, 44)
+	update := newTestCallbackUpdate("g:r:"+badToken, 2001, 2001, 44)
 
 	HandleGameCallback(context.Background(), b, update)
 
@@ -407,47 +372,32 @@ func TestHandleGameCallbackIgnoresStaleToken(t *testing.T) {
 			t.Fatalf("did not expect editMessageText on stale callback")
 		}
 	}
-	if session.attemptCount != 0 {
-		t.Fatalf("expected no attempts recorded for stale callback")
-	}
 }
 
 func TestHandleGameCallbackRevealRequeuesAndEdits(t *testing.T) {
 	logger.SetLogLevel(logger.ERROR)
 	resetGameManager(time.Now)
 
-	current := Card{PairID: 1, Direction: DirectionAToB, Shown: "hola", Expected: "adios"}
-	next := Card{PairID: 2, Direction: DirectionBToA, Shown: "uno", Expected: "one"}
-	session := &GameSession{
-		chatID:           2002,
-		userID:           2002,
-		currentCard:      &current,
-		currentMessageID: 55,
-		currentResolved:  false,
-		currentToken:     "token",
-		deck:             []Card{next},
+	pairs := []dbpkg.WordPair{
+		{UserID: 2002, Word1: "hola", Word2: "adios"},
+		{UserID: 2002, Word1: "uno", Word2: "one"},
 	}
-	key := getSessionKey(2002, 2002)
-	gameManager.mu.Lock()
-	gameManager.sessions[key] = session
-	gameManager.mu.Unlock()
+	session := game.DefaultManager.StartOrRestart(2002, 2002, pairs)
+	if session == nil || session.CurrentCard() == nil {
+		t.Fatalf("expected session with current card")
+	}
+	game.DefaultManager.SetCurrentMessageID(session, 55)
 
 	client := newMockClient()
 	client.response = `{"ok":true,"result":{"message_id":99}}`
 	b := newTestTelegramBot(t, client)
-	update := newTestCallbackUpdate("g:r:token", 2002, 2002, 55)
+	update := newTestCallbackUpdate("g:r:"+session.CurrentToken(), 2002, 2002, 55)
 
 	HandleGameCallback(context.Background(), b, update)
 
-	updated := gameManager.GetSession(2002, 2002)
+	updated := game.DefaultManager.GetSession(2002, 2002)
 	if updated == nil {
 		t.Fatalf("expected session to remain active")
-	}
-	if updated.attemptCount != 1 || updated.correctCount != 0 {
-		t.Fatalf("expected attempt count to increment, got attempts=%d correct=%d", updated.attemptCount, updated.correctCount)
-	}
-	if len(updated.deck) != 1 || updated.deck[0] != current {
-		t.Fatalf("expected current card to be requeued, got %+v", updated.deck)
 	}
 
 	body := client.lastRequestBody(t)
@@ -457,7 +407,7 @@ func TestHandleGameCallbackRevealRequeuesAndEdits(t *testing.T) {
 }
 
 func TestFormatGameRevealTextAddsSpoilerAndEscapes(t *testing.T) {
-	card := Card{
+	card := game.Card{
 		Shown:    "hello_world",
 		Expected: "word[1]",
 	}

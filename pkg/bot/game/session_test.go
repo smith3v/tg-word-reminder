@@ -1,4 +1,4 @@
-package bot
+package game
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/smith3v/tg-word-reminder/pkg/db"
+	"github.com/smith3v/tg-word-reminder/pkg/internal/testutil"
 )
 
 type testClock struct {
@@ -210,7 +211,7 @@ func TestFinishStatsFormatsStats(t *testing.T) {
 }
 
 func TestSelectRandomPairsReturnsDistinctPairs(t *testing.T) {
-	setupTestDB(t)
+	testutil.SetupTestDB(t)
 
 	userID := int64(800)
 	otherID := int64(801)
@@ -233,7 +234,7 @@ func TestSelectRandomPairsReturnsDistinctPairs(t *testing.T) {
 		t.Fatalf("failed to seed pairs: %v", err)
 	}
 
-	selected, err := selectRandomPairs(userID, DeckPairs)
+	selected, err := SelectRandomPairs(userID, DeckPairs)
 	if err != nil {
 		t.Fatalf("failed to select pairs: %v", err)
 	}
@@ -422,13 +423,13 @@ func TestResolveTextAttemptCorrectDiscards(t *testing.T) {
 
 	clock.Advance(30 * time.Second)
 	result := manager.ResolveTextAttempt(1, 2, "  Adios ")
-	if !result.handled || !result.correct {
+	if !result.Handled || !result.Correct {
 		t.Fatalf("expected handled correct result, got %+v", result)
 	}
-	if result.promptMessageID != 10 {
-		t.Fatalf("expected prompt message ID 10, got %d", result.promptMessageID)
+	if result.PromptMessageID != 10 {
+		t.Fatalf("expected prompt message ID 10, got %d", result.PromptMessageID)
 	}
-	if result.nextCard == nil || *result.nextCard != next {
+	if result.NextCard == nil || *result.NextCard != next {
 		t.Fatalf("expected next card to be dequeued")
 	}
 
@@ -465,10 +466,10 @@ func TestResolveTextAttemptIncorrectRequeues(t *testing.T) {
 	manager.sessions[getSessionKey(3, 4)] = session
 
 	result := manager.ResolveTextAttempt(3, 4, "nope")
-	if !result.handled || result.correct {
+	if !result.Handled || result.Correct {
 		t.Fatalf("expected handled incorrect result, got %+v", result)
 	}
-	if result.nextCard == nil || *result.nextCard != next {
+	if result.NextCard == nil || *result.NextCard != next {
 		t.Fatalf("expected next card to be dequeued")
 	}
 
@@ -498,7 +499,7 @@ func TestResolveTextAttemptAcceptsCommaOption(t *testing.T) {
 	manager.sessions[getSessionKey(7, 8)] = session
 
 	result := manager.ResolveTextAttempt(7, 8, " Hasta luego ")
-	if !result.handled || !result.correct {
+	if !result.Handled || !result.Correct {
 		t.Fatalf("expected comma option to be accepted, got %+v", result)
 	}
 }
@@ -517,7 +518,7 @@ func TestResolveTextAttemptAcceptsFullCommaAnswerWhenPromptHasComma(t *testing.T
 	manager.sessions[getSessionKey(11, 12)] = session
 
 	result := manager.ResolveTextAttempt(11, 12, "adios, hasta luego")
-	if !result.handled || !result.correct {
+	if !result.Handled || !result.Correct {
 		t.Fatalf("expected full comma answer to be accepted, got %+v", result)
 	}
 }
@@ -536,7 +537,7 @@ func TestResolveTextAttemptAcceptsSingleAnswerWhenPromptHasComma(t *testing.T) {
 	manager.sessions[getSessionKey(13, 14)] = session
 
 	result := manager.ResolveTextAttempt(13, 14, "Hasta luego")
-	if !result.handled || !result.correct {
+	if !result.Handled || !result.Correct {
 		t.Fatalf("expected single answer to be accepted, got %+v", result)
 	}
 }
@@ -555,7 +556,7 @@ func TestResolveTextAttemptRejectsPartialCommaAnswerWhenPromptHasComma(t *testin
 	manager.sessions[getSessionKey(15, 16)] = session
 
 	result := manager.ResolveTextAttempt(15, 16, "adios, nope")
-	if !result.handled || result.correct {
+	if !result.Handled || result.Correct {
 		t.Fatalf("expected partial comma answer to be rejected, got %+v", result)
 	}
 }
@@ -574,10 +575,10 @@ func TestResolveTextAttemptFinishesOnEmptyDeck(t *testing.T) {
 	manager.sessions[getSessionKey(5, 6)] = session
 
 	result := manager.ResolveTextAttempt(5, 6, "adios")
-	if !result.handled || !result.correct {
+	if !result.Handled || !result.Correct {
 		t.Fatalf("expected handled correct result, got %+v", result)
 	}
-	if result.statsText == "" {
+	if result.StatsText == "" {
 		t.Fatalf("expected stats text for finished session")
 	}
 	if manager.GetSession(5, 6) != nil {
@@ -607,7 +608,7 @@ func TestNormalizeAnswer(t *testing.T) {
 }
 
 func TestGameSessionPersistenceStartCreatesRow(t *testing.T) {
-	setupTestDB(t)
+	testutil.SetupTestDB(t)
 
 	clock := &testClock{t: time.Date(2024, 3, 1, 9, 0, 0, 0, time.UTC)}
 	manager := NewGameManager(clock.Now)
@@ -667,7 +668,7 @@ func TestGameSessionPersistenceAttemptsUpdateCounts(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setupTestDB(t)
+			testutil.SetupTestDB(t)
 
 			clock := &testClock{t: time.Date(2024, 3, 2, 10, 0, 0, 0, time.UTC)}
 			manager := NewGameManager(clock.Now)
@@ -691,7 +692,7 @@ func TestGameSessionPersistenceAttemptsUpdateCounts(t *testing.T) {
 }
 
 func TestGameSessionPersistenceFinishUpdatesEndFields(t *testing.T) {
-	setupTestDB(t)
+	testutil.SetupTestDB(t)
 
 	clock := &testClock{t: time.Date(2024, 3, 3, 11, 0, 0, 0, time.UTC)}
 	manager := NewGameManager(clock.Now)
@@ -726,7 +727,7 @@ func TestGameSessionPersistenceFinishUpdatesEndFields(t *testing.T) {
 }
 
 func TestGameSessionPersistenceTimeoutUpdatesEndFields(t *testing.T) {
-	setupTestDB(t)
+	testutil.SetupTestDB(t)
 
 	clock := &testClock{t: time.Date(2024, 3, 4, 12, 0, 0, 0, time.UTC)}
 	manager := NewGameManager(clock.Now)
@@ -762,7 +763,7 @@ func TestGameSessionPersistenceTimeoutUpdatesEndFields(t *testing.T) {
 }
 
 func TestGameSessionPersistenceEndDoesNotOverwrite(t *testing.T) {
-	setupTestDB(t)
+	testutil.SetupTestDB(t)
 
 	clock := &testClock{t: time.Date(2024, 3, 5, 13, 0, 0, 0, time.UTC)}
 	manager := NewGameManager(clock.Now)

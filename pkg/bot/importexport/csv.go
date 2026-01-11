@@ -1,4 +1,4 @@
-package bot
+package importexport
 
 import (
 	"bytes"
@@ -23,7 +23,7 @@ var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
 
 const maxDelimiterSampleRecords = 20
 
-func parseVocabularyCSV(data []byte) ([]wordPairInput, int, error) {
+func ParseVocabularyCSV(data []byte) ([]wordPairInput, int, error) {
 	data = bytes.TrimPrefix(data, utf8BOM)
 	delimiter := detectCSVDelimiter(data)
 
@@ -156,7 +156,7 @@ func isHeaderRecord(record []string) bool {
 	return leftOK && rightOK
 }
 
-func upsertWordPairs(userID int64, pairs []wordPairInput) (int, int, error) {
+func UpsertWordPairs(userID int64, pairs []wordPairInput) (int, int, error) {
 	inserted := 0
 	updated := 0
 
@@ -196,7 +196,7 @@ func upsertWordPairs(userID int64, pairs []wordPairInput) (int, int, error) {
 	return inserted, updated, nil
 }
 
-func buildExportCSV(pairs []db.WordPair) ([]byte, error) {
+func BuildExportCSV(pairs []db.WordPair) ([]byte, error) {
 	var buf bytes.Buffer
 	if _, err := buf.Write(utf8BOM); err != nil {
 		return nil, err
@@ -218,11 +218,11 @@ func buildExportCSV(pairs []db.WordPair) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func exportFilename(now time.Time) string {
+func ExportFilename(now time.Time) string {
 	return fmt.Sprintf("vocabulary-%s.csv", now.Format("20060102"))
 }
 
-func sortPairsForExport(pairs []db.WordPair) {
+func SortPairsForExport(pairs []db.WordPair) {
 	sort.Slice(pairs, func(i, j int) bool {
 		if pairs[i].Word1 == pairs[j].Word1 {
 			return pairs[i].ID < pairs[j].ID

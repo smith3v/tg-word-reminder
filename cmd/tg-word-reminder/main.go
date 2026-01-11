@@ -8,7 +8,9 @@ import (
 	"os/signal"
 
 	"github.com/go-telegram/bot"
-	reminderBot "github.com/smith3v/tg-word-reminder/pkg/bot"
+	"github.com/smith3v/tg-word-reminder/pkg/bot/game"
+	"github.com/smith3v/tg-word-reminder/pkg/bot/handlers"
+	"github.com/smith3v/tg-word-reminder/pkg/bot/reminders"
 	"github.com/smith3v/tg-word-reminder/pkg/config"
 	"github.com/smith3v/tg-word-reminder/pkg/db"
 )
@@ -38,7 +40,7 @@ func main() {
 	defer cancel()
 
 	opts := []bot.Option{
-		bot.WithDefaultHandler(reminderBot.DefaultHandler),
+		bot.WithDefaultHandler(handlers.DefaultHandler),
 	}
 	b, err := bot.New(config.AppConfig.Telegram.Token, opts...)
 	if err != nil {
@@ -46,17 +48,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	b.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypeExact, reminderBot.HandleStart)
-	b.RegisterHandler(bot.HandlerTypeMessageText, "/settings", bot.MatchTypeExact, reminderBot.HandleSettings)
-	b.RegisterHandler(bot.HandlerTypeMessageText, "/clear", bot.MatchTypeExact, reminderBot.HandleClear)
-	b.RegisterHandler(bot.HandlerTypeMessageText, "/getpair", bot.MatchTypeExact, reminderBot.HandleGetPair)
-	b.RegisterHandler(bot.HandlerTypeMessageText, "/export", bot.MatchTypeExact, reminderBot.HandleExport)
-	b.RegisterHandler(bot.HandlerTypeMessageText, "/game", bot.MatchTypeExact, reminderBot.HandleGameStart)
-	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "s:", bot.MatchTypePrefix, reminderBot.HandleSettingsCallback)
-	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "g:r:", bot.MatchTypePrefix, reminderBot.HandleGameCallback)
+	b.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypeExact, handlers.HandleStart)
+	b.RegisterHandler(bot.HandlerTypeMessageText, "/settings", bot.MatchTypeExact, handlers.HandleSettings)
+	b.RegisterHandler(bot.HandlerTypeMessageText, "/clear", bot.MatchTypeExact, handlers.HandleClear)
+	b.RegisterHandler(bot.HandlerTypeMessageText, "/getpair", bot.MatchTypeExact, handlers.HandleGetPair)
+	b.RegisterHandler(bot.HandlerTypeMessageText, "/export", bot.MatchTypeExact, handlers.HandleExport)
+	b.RegisterHandler(bot.HandlerTypeMessageText, "/game", bot.MatchTypeExact, handlers.HandleGameStart)
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "s:", bot.MatchTypePrefix, handlers.HandleSettingsCallback)
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "g:r:", bot.MatchTypePrefix, handlers.HandleGameCallback)
 
-	go reminderBot.StartPeriodicMessages(ctx, b)
-	go reminderBot.StartGameSweeper(ctx, botSender{b: b})
+	go reminders.StartPeriodicMessages(ctx, b)
+	go game.StartGameSweeper(ctx, botSender{b: b})
 
 	logger.Info("Starting bot...")
 	b.Start(ctx)

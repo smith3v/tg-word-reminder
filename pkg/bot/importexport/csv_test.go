@@ -1,4 +1,4 @@
-package bot
+package importexport
 
 import (
 	"bytes"
@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	dbpkg "github.com/smith3v/tg-word-reminder/pkg/db"
+	"github.com/smith3v/tg-word-reminder/pkg/internal/testutil"
 )
 
 func TestDetectCSVDelimiter(t *testing.T) {
@@ -39,7 +40,7 @@ func TestParseVocabularyCSV(t *testing.T) {
 		"bonjour;hello",
 	}, "\n")
 
-	pairs, skipped, err := parseVocabularyCSV([]byte(data))
+	pairs, skipped, err := ParseVocabularyCSV([]byte(data))
 	if err != nil {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
@@ -58,7 +59,7 @@ func TestParseVocabularyCSV(t *testing.T) {
 }
 
 func TestUpsertWordPairs(t *testing.T) {
-	setupTestDB(t)
+	testutil.SetupTestDB(t)
 
 	if err := dbpkg.DB.Create(&dbpkg.WordPair{
 		UserID: 111,
@@ -68,7 +69,7 @@ func TestUpsertWordPairs(t *testing.T) {
 		t.Fatalf("failed to seed word pair: %v", err)
 	}
 
-	inserted, updated, err := upsertWordPairs(111, []wordPairInput{
+	inserted, updated, err := UpsertWordPairs(111, []wordPairInput{
 		{Word1: "hola", Word2: "bonjour"},
 		{Word1: "ciao", Word2: "hello"},
 	})
@@ -100,7 +101,7 @@ func TestBuildExportCSV(t *testing.T) {
 		{Word1: "comma,word", Word2: `quote"word`},
 	}
 
-	data, err := buildExportCSV(pairs)
+	data, err := BuildExportCSV(pairs)
 	if err != nil {
 		t.Fatalf("unexpected export error: %v", err)
 	}

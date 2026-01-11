@@ -10,6 +10,19 @@ This is a Telegram bot built using Go that allows users to upload word pairs and
 - Set the frequency of reminders per day.
 - Periodic reminders sent to users with random word pairs.
 
+## Project Structure
+
+- `cmd/tg-word-reminder/main.go`: application entrypoint.
+- `pkg/bot/handlers`: Telegram command/update handlers.
+- `pkg/bot/game`: quiz session state and matching logic.
+- `pkg/bot/reminders`: reminder scheduling and delivery.
+- `pkg/bot/importexport`: CSV parsing and export helpers.
+- `pkg/db`: GORM models and database initialization.
+- `pkg/config`: JSON config loader.
+- `pkg/logger`: slog wrapper.
+- `pkg/ui`: inline keyboard rendering and callback data parsing.
+- `pkg/internal/testutil`: shared test helpers.
+
 ## Prerequisites
 
 - Go 1.25 or newer

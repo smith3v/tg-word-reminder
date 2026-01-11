@@ -1,4 +1,4 @@
-package bot
+package game
 
 import (
 	"math/rand"
