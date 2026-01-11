@@ -1,213 +1,21 @@
 package handlers
 
 import (
-	"bytes"
 	"context"
-	"fmt"
-	"io"
-	"mime"
-	"mime/multipart"
-	"net/http"
 	"strings"
 	"testing"
 	"time"
 
-	telegram "github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/smith3v/tg-word-reminder/pkg/bot/game"
+	"github.com/smith3v/tg-word-reminder/pkg/db"
+	"github.com/smith3v/tg-word-reminder/pkg/internal/testutil"
 	"github.com/smith3v/tg-word-reminder/pkg/logger"
 	"github.com/smith3v/tg-word-reminder/pkg/ui"
-
-	dbpkg "github.com/smith3v/tg-word-reminder/pkg/db"
-	"github.com/smith3v/tg-word-reminder/pkg/internal/testutil"
 )
-
-type recordedRequest struct {
-	path        string
-	method      string
-	contentType string
-	body        []byte
-}
-
-type mockClient struct {
-	requests []recordedRequest
-	response string
-}
-
-func newMockClient() *mockClient {
-	return &mockClient{
-		response: `{"ok":true,"result":{}}`,
-	}
-}
-
-func (m *mockClient) Do(req *http.Request) (*http.Response, error) {
-	body, err := io.ReadAll(req.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read request body: %w", err)
-	}
-	if err := req.Body.Close(); err != nil {
-		return nil, fmt.Errorf("failed to close request body: %w", err)
-	}
-	m.requests = append(m.requests, recordedRequest{
-		path:        req.URL.Path,
-		method:      req.Method,
-		contentType: req.Header.Get("Content-Type"),
-		body:        body,
-	})
-
-	resp := &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(strings.NewReader(m.response)),
-		Header:     make(http.Header),
-	}
-	return resp, nil
-}
-
-func (m *mockClient) lastMessageText(t *testing.T) string {
-	t.Helper()
-	if len(m.requests) == 0 {
-		t.Fatalf("expected at least one recorded request")
-	}
-	req := m.requests[len(m.requests)-1]
-
-	mediaType, params, err := mime.ParseMediaType(req.contentType)
-	if err != nil {
-		t.Fatalf("failed to parse media type: %v", err)
-	}
-	if !strings.HasPrefix(mediaType, "multipart/") {
-		t.Fatalf("unexpected media type: %s", mediaType)
-	}
-
-	reader := multipart.NewReader(bytes.NewReader(req.body), params["boundary"])
-	for {
-		part, err := reader.NextPart()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			t.Fatalf("failed to read multipart part: %v", err)
-		}
-		if part.FormName() == "text" {
-			data, err := io.ReadAll(part)
-			if err != nil {
-				t.Fatalf("failed to read text part: %v", err)
-			}
-			return string(data)
-		}
-	}
-	t.Fatalf("text field not found in request")
-	return ""
-}
-
-func (m *mockClient) lastRequestBody(t *testing.T) string {
-	t.Helper()
-	if len(m.requests) == 0 {
-		t.Fatalf("expected at least one recorded request")
-	}
-	return string(m.requests[len(m.requests)-1].body)
-}
-
-func newTestTelegramBot(t *testing.T, client *mockClient) *telegram.Bot {
-	t.Helper()
-	b, err := telegram.New("test-token",
-		telegram.WithSkipGetMe(),
-		telegram.WithHTTPClient(time.Second, client),
-	)
-	if err != nil {
-		t.Fatalf("failed to create test bot: %v", err)
-	}
-	return b
-}
-
-func newTestUpdate(text string, userID int64) *models.Update {
-	return &models.Update{
-		Message: &models.Message{
-			From: &models.User{
-				ID: userID,
-			},
-			Chat: models.Chat{
-				ID: userID,
-			},
-			Text: text,
-		},
-	}
-}
 
 func resetGameManager(now func() time.Time) {
 	game.ResetDefaultManager(now)
-}
-
-func TestHandleGetPairWithoutWords(t *testing.T) {
-	testutil.SetupTestDB(t)
-	logger.SetLogLevel(logger.ERROR)
-
-	client := newMockClient()
-	b := newTestTelegramBot(t, client)
-	update := newTestUpdate("/getpair", 404)
-
-	HandleGetPair(context.Background(), b, update)
-
-	got := client.lastMessageText(t)
-	if !strings.Contains(got, "You have no word pairs saved") {
-		t.Fatalf("expected no data message, got %q", got)
-	}
-}
-
-func TestHandleGetPairSendsRandomPair(t *testing.T) {
-	testutil.SetupTestDB(t)
-	logger.SetLogLevel(logger.ERROR)
-
-	if err := dbpkg.DB.Create(&dbpkg.WordPair{
-		UserID: 505,
-		Word1:  "Hola",
-		Word2:  "Adios",
-	}).Error; err != nil {
-		t.Fatalf("failed to seed word pair: %v", err)
-	}
-
-	client := newMockClient()
-	b := newTestTelegramBot(t, client)
-	update := newTestUpdate("/getpair", 505)
-
-	HandleGetPair(context.Background(), b, update)
-
-	got := client.lastMessageText(t)
-	if !strings.Contains(got, "Hola") || !strings.Contains(got, "Adios") {
-		t.Fatalf("expected message to contain both words, got %q", got)
-	}
-}
-
-func TestHandleClearRemovesWordPairs(t *testing.T) {
-	testutil.SetupTestDB(t)
-	logger.SetLogLevel(logger.ERROR)
-
-	userID := int64(606)
-	pairs := []dbpkg.WordPair{
-		{UserID: userID, Word1: "one", Word2: "uno"},
-		{UserID: userID, Word1: "two", Word2: "dos"},
-	}
-	if err := dbpkg.DB.Create(&pairs).Error; err != nil {
-		t.Fatalf("failed to seed word pairs: %v", err)
-	}
-
-	client := newMockClient()
-	b := newTestTelegramBot(t, client)
-	update := newTestUpdate("/clear", userID)
-
-	HandleClear(context.Background(), b, update)
-
-	var count int64
-	if err := dbpkg.DB.Model(&dbpkg.WordPair{}).Where("user_id = ?", userID).Count(&count).Error; err != nil {
-		t.Fatalf("failed to count word pairs: %v", err)
-	}
-	if count != 0 {
-		t.Fatalf("expected word pairs to be deleted, found %d", count)
-	}
-
-	got := client.lastMessageText(t)
-	if !strings.Contains(got, "has been cleared") {
-		t.Fatalf("expected confirmation message, got %q", got)
-	}
 }
 
 func TestHandleGameStartRejectsNonPrivateChat(t *testing.T) {
@@ -251,7 +59,7 @@ func TestHandleGameStartSendsPromptWithCallback(t *testing.T) {
 	logger.SetLogLevel(logger.ERROR)
 	resetGameManager(time.Now)
 
-	if err := dbpkg.DB.Create(&dbpkg.WordPair{
+	if err := db.DB.Create(&db.WordPair{
 		UserID: 909,
 		Word1:  "Hola",
 		Word2:  "Adios",
@@ -295,7 +103,7 @@ func TestHandleGameTextAttemptNextPromptOmitsHint(t *testing.T) {
 	logger.SetLogLevel(logger.ERROR)
 	resetGameManager(time.Now)
 
-	pairs := []dbpkg.WordPair{
+	pairs := []db.WordPair{
 		{UserID: 1001, Word1: "hola", Word2: "adios"},
 	}
 	session := game.DefaultManager.StartOrRestart(1001, 1001, pairs)
@@ -324,31 +132,11 @@ func TestHandleGameTextAttemptNextPromptOmitsHint(t *testing.T) {
 	}
 }
 
-func newTestCallbackUpdate(data string, userID, chatID int64, messageID int) *models.Update {
-	return &models.Update{
-		CallbackQuery: &models.CallbackQuery{
-			ID:   "callback-1",
-			From: models.User{ID: userID},
-			Data: data,
-			Message: models.MaybeInaccessibleMessage{
-				Type: models.MaybeInaccessibleMessageTypeMessage,
-				Message: &models.Message{
-					ID: messageID,
-					Chat: models.Chat{
-						ID:   chatID,
-						Type: models.ChatTypePrivate,
-					},
-				},
-			},
-		},
-	}
-}
-
 func TestHandleGameCallbackIgnoresStaleToken(t *testing.T) {
 	logger.SetLogLevel(logger.ERROR)
 	resetGameManager(time.Now)
 
-	pairs := []dbpkg.WordPair{
+	pairs := []db.WordPair{
 		{UserID: 2001, Word1: "hola", Word2: "adios"},
 	}
 	session := game.DefaultManager.StartOrRestart(2001, 2001, pairs)
@@ -378,7 +166,7 @@ func TestHandleGameCallbackRevealRequeuesAndEdits(t *testing.T) {
 	logger.SetLogLevel(logger.ERROR)
 	resetGameManager(time.Now)
 
-	pairs := []dbpkg.WordPair{
+	pairs := []db.WordPair{
 		{UserID: 2002, Word1: "hola", Word2: "adios"},
 		{UserID: 2002, Word1: "uno", Word2: "one"},
 	}

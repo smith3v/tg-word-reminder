@@ -1,10 +1,14 @@
 package handlers
 
 import (
+	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/smith3v/tg-word-reminder/pkg/db"
+	"github.com/smith3v/tg-word-reminder/pkg/internal/testutil"
+	"github.com/smith3v/tg-word-reminder/pkg/logger"
 	"github.com/smith3v/tg-word-reminder/pkg/ui"
 )
 
@@ -146,5 +150,79 @@ func TestApplyActionInvalid(t *testing.T) {
 	_, _, _, err := ApplyAction(settings, ui.Action{Screen: ui.ScreenHome, Op: ui.OpInc})
 	if !errors.Is(err, ErrInvalidAction) {
 		t.Fatalf("expected ErrInvalidAction, got %v", err)
+	}
+}
+
+func TestHandleSettingsMissingSettings(t *testing.T) {
+	testutil.SetupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+
+	client := newMockClient()
+	b := newTestTelegramBot(t, client)
+	update := newTestUpdate("/settings", 300)
+
+	HandleSettings(context.Background(), b, update)
+
+	got := client.lastMessageText(t)
+	if !strings.Contains(got, "Settings not found") {
+		t.Fatalf("expected missing settings message, got %q", got)
+	}
+}
+
+func TestHandleSettingsSendsHome(t *testing.T) {
+	testutil.SetupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+
+	seed := db.UserSettings{UserID: 301, PairsToSend: 2, RemindersPerDay: 3}
+	if err := db.DB.Create(&seed).Error; err != nil {
+		t.Fatalf("failed to seed settings: %v", err)
+	}
+
+	client := newMockClient()
+	b := newTestTelegramBot(t, client)
+	update := newTestUpdate("/settings", 301)
+
+	HandleSettings(context.Background(), b, update)
+
+	got := client.lastMessageText(t)
+	if !strings.Contains(got, "Settings") {
+		t.Fatalf("expected settings text, got %q", got)
+	}
+	if !strings.Contains(got, "Pairs per reminder") {
+		t.Fatalf("expected pairs label, got %q", got)
+	}
+}
+
+func TestHandleSettingsCallbackUpdatesPairs(t *testing.T) {
+	testutil.SetupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+
+	seed := db.UserSettings{UserID: 302, PairsToSend: 1, RemindersPerDay: 1}
+	if err := db.DB.Create(&seed).Error; err != nil {
+		t.Fatalf("failed to seed settings: %v", err)
+	}
+
+	data, err := ui.BuildPairsIncCallback()
+	if err != nil {
+		t.Fatalf("failed to build callback: %v", err)
+	}
+
+	client := newMockClient()
+	b := newTestTelegramBot(t, client)
+	update := newTestCallbackUpdate(data, 302, 302, 50)
+
+	HandleSettingsCallback(context.Background(), b, update)
+
+	var settings db.UserSettings
+	if err := db.DB.Where("user_id = ?", 302).First(&settings).Error; err != nil {
+		t.Fatalf("failed to load settings: %v", err)
+	}
+	if settings.PairsToSend != 2 {
+		t.Fatalf("expected pairs to increment, got %d", settings.PairsToSend)
+	}
+
+	last := client.requests[len(client.requests)-1]
+	if !strings.Contains(last.path, "editMessageText") {
+		t.Fatalf("expected editMessageText request, got %s", last.path)
 	}
 }
