@@ -48,6 +48,19 @@ Snooze behavior:
 - For each card with `srs_due_at <= now`, set `srs_due_at = now + delta`.
 - Do not change `srs_state`, `srs_interval_days`, or `srs_ease`.
 
+### Inactivity pause
+If the user ignores 3 consecutive reminder sessions, pause future auto reminders until they re-engage.
+
+Definition of "missed session":
+- A reminder session is considered missed if **no grading action** occurs before the next scheduled reminder slot.
+- A grading action is any `Again/Hard/Good/Easy` tap or a `/review` session start.
+
+Behavior:
+- Track `missed_training_sessions` per user (consecutive count).
+- After 3 consecutive misses, set `training_paused = true` and stop auto reminders.
+- On any engagement (grade tap or `/review`), clear `training_paused` and reset `missed_training_sessions` to 0.
+- Optionally send a one-time notice when pausing ("Paused reminders due to inactivity"). Do not spam.
+
 ## Settings
 
 ### User-facing
@@ -139,6 +152,16 @@ On migration, all existing pairs become `new` with:
 - Remove `reminders_per_day`.
 - Add booleans: `reminder_morning`, `reminder_afternoon`, `reminder_evening`.
 - Add `timezone_offset_hours` (int, range -12 to +14).
+- Add `missed_training_sessions` (int, consecutive misses).
+- Add `training_paused` (bool).
+- Add `last_training_sent_at` (timestamp).
+- Add `last_training_engaged_at` (timestamp).
+
+Migration mapping for `reminders_per_day` before removal:
+- `0`: disable all reminder slots.
+- `1`: enable `reminder_evening` only.
+- `2`: enable `reminder_morning` and `reminder_evening`.
+- `>2`: enable all three slots.
 
 ### Indexing
 - Add an index on `(user_id, srs_due_at)` for efficient due lookups.
