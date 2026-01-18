@@ -165,6 +165,7 @@ func UpsertWordPairs(userID int64, pairs []wordPairInput) (int, int, error) {
 	}
 
 	err := db.DB.Transaction(func(tx *gorm.DB) error {
+		now := time.Now().UTC()
 		for _, pair := range pairs {
 			result := tx.Model(&db.WordPair{}).
 				Where("user_id = ? AND word1 = ?", userID, pair.Word1).
@@ -178,9 +179,14 @@ func UpsertWordPairs(userID int64, pairs []wordPairInput) (int, int, error) {
 			}
 
 			newPair := db.WordPair{
-				UserID: userID,
-				Word1:  pair.Word1,
-				Word2:  pair.Word2,
+				UserID:          userID,
+				Word1:           pair.Word1,
+				Word2:           pair.Word2,
+				SrsState:        "new",
+				SrsDueAt:        now,
+				SrsIntervalDays: 0,
+				SrsEase:         2.5,
+				SrsStep:         0,
 			}
 			if err := tx.Create(&newPair).Error; err != nil {
 				return err

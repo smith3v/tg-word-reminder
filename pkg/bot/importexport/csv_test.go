@@ -93,6 +93,18 @@ func TestUpsertWordPairs(t *testing.T) {
 	if pairs[1].Word1 != "hola" || pairs[1].Word2 != "bonjour" {
 		t.Fatalf("unexpected pair[1]: %+v", pairs[1])
 	}
+	if pairs[0].SrsState != "new" {
+		t.Fatalf("expected new pair to have SRS state, got %+v", pairs[0])
+	}
+	if pairs[0].SrsIntervalDays != 0 || pairs[0].SrsStep != 0 {
+		t.Fatalf("expected default SRS interval/step, got %+v", pairs[0])
+	}
+	if pairs[0].SrsEase != 2.5 {
+		t.Fatalf("expected default SRS ease 2.5, got %+v", pairs[0])
+	}
+	if pairs[0].SrsDueAt.IsZero() {
+		t.Fatalf("expected default SRS due date set, got %+v", pairs[0])
+	}
 }
 
 func TestBuildExportCSV(t *testing.T) {

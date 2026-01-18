@@ -21,9 +21,15 @@ func HandleStart(ctx context.Context, b *bot.Bot, update *models.Update) {
 	if err := db.DB.Where("user_id = ?", update.Message.From.ID).First(&settings).Error; err != nil {
 		if err == gorm.ErrRecordNotFound { // User settings do not exist
 			settings = db.UserSettings{
-				UserID:          update.Message.From.ID,
-				PairsToSend:     1, // Default value
-				RemindersPerDay: 1, // Default value
+				UserID:                 update.Message.From.ID,
+				PairsToSend:            5,
+				RemindersPerDay:        1,
+				ReminderMorning:        false,
+				ReminderAfternoon:      false,
+				ReminderEvening:        true,
+				TimezoneOffsetHours:    0,
+				MissedTrainingSessions: 0,
+				TrainingPaused:         false,
 			}
 			if err := db.DB.Create(&settings).Error; err != nil {
 				logger.Error("failed to create user settings", "user_id", update.Message.From.ID, "error", err)

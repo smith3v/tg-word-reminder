@@ -24,8 +24,17 @@ func TestHandleStartCreatesSettings(t *testing.T) {
 	if err := db.DB.Where("user_id = ?", 202).First(&settings).Error; err != nil {
 		t.Fatalf("failed to load settings: %v", err)
 	}
-	if settings.PairsToSend != 1 || settings.RemindersPerDay != 1 {
+	if settings.PairsToSend != 5 || settings.RemindersPerDay != 1 {
 		t.Fatalf("expected default settings, got %+v", settings)
+	}
+	if settings.ReminderMorning || settings.ReminderAfternoon || !settings.ReminderEvening {
+		t.Fatalf("expected evening reminders only, got %+v", settings)
+	}
+	if settings.TimezoneOffsetHours != 0 {
+		t.Fatalf("expected timezone offset 0, got %+v", settings)
+	}
+	if settings.MissedTrainingSessions != 0 || settings.TrainingPaused {
+		t.Fatalf("expected training engagement defaults, got %+v", settings)
 	}
 
 	got := client.lastMessageText(t)
@@ -38,7 +47,15 @@ func TestHandleStartKeepsExistingSettings(t *testing.T) {
 	testutil.SetupTestDB(t)
 	logger.SetLogLevel(logger.ERROR)
 
-	seed := db.UserSettings{UserID: 203, PairsToSend: 3, RemindersPerDay: 4}
+	seed := db.UserSettings{
+		UserID:              203,
+		PairsToSend:         3,
+		RemindersPerDay:     4,
+		ReminderMorning:     true,
+		ReminderAfternoon:   true,
+		ReminderEvening:     true,
+		TimezoneOffsetHours: 2,
+	}
 	if err := db.DB.Create(&seed).Error; err != nil {
 		t.Fatalf("failed to seed settings: %v", err)
 	}
@@ -55,5 +72,11 @@ func TestHandleStartKeepsExistingSettings(t *testing.T) {
 	}
 	if settings.PairsToSend != 3 || settings.RemindersPerDay != 4 {
 		t.Fatalf("expected settings to remain unchanged, got %+v", settings)
+	}
+	if !settings.ReminderMorning || !settings.ReminderAfternoon || !settings.ReminderEvening {
+		t.Fatalf("expected reminder slots to remain enabled, got %+v", settings)
+	}
+	if settings.TimezoneOffsetHours != 2 {
+		t.Fatalf("expected timezone offset to remain unchanged, got %+v", settings)
 	}
 }
