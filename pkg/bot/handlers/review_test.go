@@ -1,0 +1,94 @@
+package handlers
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/go-telegram/bot/models"
+	"github.com/smith3v/tg-word-reminder/pkg/bot/training"
+	"github.com/smith3v/tg-word-reminder/pkg/db"
+	"github.com/smith3v/tg-word-reminder/pkg/internal/testutil"
+	"github.com/smith3v/tg-word-reminder/pkg/logger"
+)
+
+func TestHandleReviewNoPairs(t *testing.T) {
+	testutil.SetupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+	training.ResetDefaultManager(time.Now)
+
+	client := newMockClient()
+	b := newTestTelegramBot(t, client)
+	update := newTestUpdate("/review", 3001)
+	update.Message.Chat.Type = models.ChatTypePrivate
+
+	HandleReview(context.Background(), b, update)
+
+	got := client.lastMessageText(t)
+	if !strings.Contains(got, "Nothing to review") {
+		t.Fatalf("expected empty review message, got %q", got)
+	}
+}
+
+func TestHandleReviewCallbackUpdatesPair(t *testing.T) {
+	testutil.SetupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+	training.ResetDefaultManager(time.Now)
+
+	now := time.Now().UTC().Add(-time.Hour)
+	pairs := []db.WordPair{
+		{UserID: 3002, Word1: "hola", Word2: "adios", SrsState: "new", SrsDueAt: now},
+		{UserID: 3002, Word1: "uno", Word2: "one", SrsState: "new", SrsDueAt: now},
+	}
+	for _, pair := range pairs {
+		if err := db.DB.Create(&pair).Error; err != nil {
+			t.Fatalf("failed to seed pair: %v", err)
+		}
+	}
+
+	client := newMockClient()
+	client.response = `{"ok":true,"result":{"message_id":55}}`
+	b := newTestTelegramBot(t, client)
+	update := newTestUpdate("/review", 3002)
+	update.Message.Chat.Type = models.ChatTypePrivate
+
+	HandleReview(context.Background(), b, update)
+
+	snapshot, ok := training.DefaultManager.Snapshot(3002, 3002)
+	if !ok {
+		t.Fatalf("expected active review session")
+	}
+
+	callback := newTestCallbackUpdate(fmt.Sprintf("t:grade:%s:good", snapshot.Token), 3002, 3002, snapshot.MessageID)
+	HandleReviewCallback(context.Background(), b, callback)
+
+	var updated db.WordPair
+	if err := db.DB.Where("id = ?", snapshot.Pair.ID).First(&updated).Error; err != nil {
+		t.Fatalf("failed to load updated pair: %v", err)
+	}
+	if updated.SrsState != "learning" || updated.SrsStep != 1 {
+		t.Fatalf("expected learning step 1 after good grade, got %+v", updated)
+	}
+	if updated.SrsLastReviewedAt == nil {
+		t.Fatalf("expected last reviewed timestamp to be set")
+	}
+
+	sendCount := 0
+	editCount := 0
+	for _, req := range client.requests {
+		if strings.Contains(req.path, "sendMessage") {
+			sendCount++
+		}
+		if strings.Contains(req.path, "editMessageText") {
+			editCount++
+		}
+	}
+	if sendCount < 2 {
+		t.Fatalf("expected at least two sendMessage calls, got %d", sendCount)
+	}
+	if editCount < 1 {
+		t.Fatalf("expected editMessageText call, got %d", editCount)
+	}
+}

@@ -61,9 +61,11 @@ func main() {
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/clear", bot.MatchTypeExact, handlers.HandleClear)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/getpair", bot.MatchTypeExact, handlers.HandleGetPair)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/export", bot.MatchTypeExact, handlers.HandleExport)
+	b.RegisterHandler(bot.HandlerTypeMessageText, "/review", bot.MatchTypeExact, handlers.HandleReview)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/game", bot.MatchTypeExact, handlers.HandleGameStart)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "s:", bot.MatchTypePrefix, handlers.HandleSettingsCallback)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "g:r:", bot.MatchTypePrefix, handlers.HandleGameCallback)
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "t:grade:", bot.MatchTypePrefix, handlers.HandleReviewCallback)
 
 	go reminders.StartPeriodicMessages(ctx, b)
 	go game.StartGameSweeper(ctx, botSender{b: b})
