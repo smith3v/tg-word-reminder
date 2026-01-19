@@ -17,8 +17,8 @@ const (
 	MinPairsPerReminder = 0
 	MaxPairsPerReminder = 10
 
-	MinRemindersPerDay = 0
-	MaxRemindersPerDay = 10
+	MinTimezoneOffset = -12
+	MaxTimezoneOffset = 14
 )
 
 var (
@@ -53,7 +53,13 @@ func HandleSettings(ctx context.Context, b *bot.Bot, update *models.Update) {
 		return
 	}
 
-	text, keyboard, err := ui.RenderHome(settings.PairsToSend, settings.RemindersPerDay)
+	text, keyboard, err := ui.RenderHome(
+		settings.PairsToSend,
+		settings.ReminderMorning,
+		settings.ReminderAfternoon,
+		settings.ReminderEvening,
+		settings.TimezoneOffsetHours,
+	)
 	if err != nil {
 		logger.Error("failed to render settings home", "user_id", update.Message.From.ID, "error", err)
 		b.SendMessage(ctx, &bot.SendMessageParams{
@@ -160,11 +166,19 @@ func HandleSettingsCallback(ctx context.Context, b *bot.Bot, update *models.Upda
 	var keyboard *models.InlineKeyboardMarkup
 	switch nextScreen {
 	case ui.ScreenHome:
-		text, keyboard, err = ui.RenderHome(newSettings.PairsToSend, newSettings.RemindersPerDay)
+		text, keyboard, err = ui.RenderHome(
+			newSettings.PairsToSend,
+			newSettings.ReminderMorning,
+			newSettings.ReminderAfternoon,
+			newSettings.ReminderEvening,
+			newSettings.TimezoneOffsetHours,
+		)
 	case ui.ScreenPairs:
 		text, keyboard, err = ui.RenderPairs(newSettings.PairsToSend)
-	case ui.ScreenFrequency:
-		text, keyboard, err = ui.RenderFreq(newSettings.RemindersPerDay)
+	case ui.ScreenSlots:
+		text, keyboard, err = ui.RenderSlots(newSettings.ReminderMorning, newSettings.ReminderAfternoon, newSettings.ReminderEvening)
+	case ui.ScreenTimezone:
+		text, keyboard, err = ui.RenderTimezone(newSettings.TimezoneOffsetHours)
 	case ui.ScreenClose:
 		text = "Settings saved ✅"
 		keyboard = &models.InlineKeyboardMarkup{
@@ -209,14 +223,30 @@ func ApplyAction(settings db.UserSettings, action ui.Action) (db.UserSettings, u
 		newSettings := settings
 		newSettings.PairsToSend = next
 		return newSettings, ui.ScreenPairs, changed, nil
-	case ui.ScreenFrequency:
-		next, changed, err := applyValue(settings.RemindersPerDay, action, MinRemindersPerDay, MaxRemindersPerDay)
-		if err != nil {
-			return settings, ui.ScreenFrequency, false, err
+	case ui.ScreenSlots:
+		if action.Op != ui.OpToggle {
+			return settings, ui.ScreenSlots, false, ErrInvalidAction
 		}
 		newSettings := settings
-		newSettings.RemindersPerDay = next
-		return newSettings, ui.ScreenFrequency, changed, nil
+		switch action.Value {
+		case ui.SlotMorning:
+			newSettings.ReminderMorning = !settings.ReminderMorning
+		case ui.SlotAfternoon:
+			newSettings.ReminderAfternoon = !settings.ReminderAfternoon
+		case ui.SlotEvening:
+			newSettings.ReminderEvening = !settings.ReminderEvening
+		default:
+			return settings, ui.ScreenSlots, false, ErrInvalidAction
+		}
+		return newSettings, ui.ScreenSlots, true, nil
+	case ui.ScreenTimezone:
+		next, changed, err := applyValue(settings.TimezoneOffsetHours, action, MinTimezoneOffset, MaxTimezoneOffset)
+		if err != nil {
+			return settings, ui.ScreenTimezone, false, err
+		}
+		newSettings := settings
+		newSettings.TimezoneOffsetHours = next
+		return newSettings, ui.ScreenTimezone, changed, nil
 	default:
 		return settings, ui.ScreenHome, false, ErrInvalidAction
 	}
@@ -256,8 +286,8 @@ func boundsForScreen(screen ui.Screen) (int, int, bool) {
 	switch screen {
 	case ui.ScreenPairs:
 		return MinPairsPerReminder, MaxPairsPerReminder, true
-	case ui.ScreenFrequency:
-		return MinRemindersPerDay, MaxRemindersPerDay, true
+	case ui.ScreenTimezone:
+		return MinTimezoneOffset, MaxTimezoneOffset, true
 	default:
 		return 0, 0, false
 	}
