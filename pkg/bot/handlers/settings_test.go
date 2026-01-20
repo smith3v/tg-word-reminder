@@ -30,6 +30,24 @@ func TestApplyActionNavigation(t *testing.T) {
 	}
 }
 
+func TestApplyActionSlotsNavigation(t *testing.T) {
+	settings := db.UserSettings{UserID: 1, ReminderMorning: true}
+
+	next, screen, changed, err := ApplyAction(settings, ui.Action{Screen: ui.ScreenSlots, Op: ui.OpNone})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if screen != ui.ScreenSlots {
+		t.Fatalf("expected slots screen, got %v", screen)
+	}
+	if changed {
+		t.Fatalf("expected no change")
+	}
+	if next != settings {
+		t.Fatalf("settings should be unchanged")
+	}
+}
+
 func TestApplyActionPairsIncrement(t *testing.T) {
 	settings := db.UserSettings{UserID: 1, PairsToSend: 2, RemindersPerDay: 3}
 

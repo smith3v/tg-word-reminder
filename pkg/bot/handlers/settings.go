@@ -224,6 +224,9 @@ func ApplyAction(settings db.UserSettings, action ui.Action) (db.UserSettings, u
 		newSettings.PairsToSend = next
 		return newSettings, ui.ScreenPairs, changed, nil
 	case ui.ScreenSlots:
+		if action.Op == ui.OpNone {
+			return settings, ui.ScreenSlots, false, nil
+		}
 		if action.Op != ui.OpToggle {
 			return settings, ui.ScreenSlots, false, ErrInvalidAction
 		}
