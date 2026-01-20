@@ -1,6 +1,7 @@
 package training
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -17,6 +18,7 @@ type Session struct {
 	currentToken      string
 	currentMessageID  int
 	currentPromptText string
+	lastActivityAt    time.Time
 }
 
 func (s *Session) CurrentPair() *db.WordPair {
@@ -64,11 +66,22 @@ func ResetDefaultManager(now func() time.Time) {
 	DefaultManager = NewSessionManager(now)
 }
 
+const (
+	SessionInactivityTimeout = 24 * time.Hour
+	SessionSweeperInterval   = 10 * time.Minute
+)
+
+func StartTrainingSweeper(ctx context.Context) {
+	DefaultManager.StartSweeper(ctx)
+}
+
 func (m *SessionManager) StartOrRestart(chatID, userID int64, pairs []db.WordPair) *Session {
+	now := m.now()
 	session := &Session{
-		chatID: chatID,
-		userID: userID,
-		queue:  append([]db.WordPair(nil), pairs...),
+		chatID:         chatID,
+		userID:         userID,
+		queue:          append([]db.WordPair(nil), pairs...),
+		lastActivityAt: now,
 	}
 	key := getSessionKey(chatID, userID)
 	m.mu.Lock()
@@ -121,6 +134,17 @@ func (m *SessionManager) SetCurrentPromptText(session *Session, text string) {
 	session.currentPromptText = text
 }
 
+func (m *SessionManager) Touch(chatID, userID int64) {
+	key := getSessionKey(chatID, userID)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	session := m.sessions[key]
+	if session == nil {
+		return
+	}
+	session.lastActivityAt = m.now()
+}
+
 func (m *SessionManager) Advance(chatID, userID int64) (*db.WordPair, string) {
 	key := getSessionKey(chatID, userID)
 	m.mu.Lock()
@@ -129,11 +153,40 @@ func (m *SessionManager) Advance(chatID, userID int64) (*db.WordPair, string) {
 	if session == nil {
 		return nil, ""
 	}
+	session.lastActivityAt = m.now()
 	if !m.nextPromptLocked(session) {
 		delete(m.sessions, key)
 		return nil, ""
 	}
 	return session.currentPair, session.currentToken
+}
+
+func (m *SessionManager) StartSweeper(ctx context.Context) {
+	ticker := time.NewTicker(SessionSweeperInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			m.SweepInactive(m.now())
+		}
+	}
+}
+
+func (m *SessionManager) SweepInactive(now time.Time) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for key, session := range m.sessions {
+		if session == nil {
+			delete(m.sessions, key)
+			continue
+		}
+		if now.Sub(session.lastActivityAt) > SessionInactivityTimeout {
+			delete(m.sessions, key)
+		}
+	}
 }
 
 func getSessionKey(chatID, userID int64) string {

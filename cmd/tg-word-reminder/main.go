@@ -10,6 +10,7 @@ import (
 	"github.com/smith3v/tg-word-reminder/pkg/bot/game"
 	"github.com/smith3v/tg-word-reminder/pkg/bot/handlers"
 	"github.com/smith3v/tg-word-reminder/pkg/bot/reminders"
+	"github.com/smith3v/tg-word-reminder/pkg/bot/training"
 	"github.com/smith3v/tg-word-reminder/pkg/config"
 	"github.com/smith3v/tg-word-reminder/pkg/db"
 	"github.com/smith3v/tg-word-reminder/pkg/logger"
@@ -69,6 +70,7 @@ func main() {
 
 	go reminders.StartPeriodicMessages(ctx, b)
 	go game.StartGameSweeper(ctx, botSender{b: b})
+	go training.StartTrainingSweeper(ctx)
 
 	logger.Info("Starting bot...")
 	b.Start(ctx)

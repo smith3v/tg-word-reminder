@@ -102,6 +102,8 @@ Training sessions are in-memory only, keyed by `(chat_id, user_id)`. Each sessio
 tracks the list of card IDs for this run, the current prompt token, and the message ID
 for safe callback handling.
 
+Sessions are swept after 24 hours of inactivity to avoid unbounded memory growth.
+
 ## Data Model
 
 ### word_pairs additions

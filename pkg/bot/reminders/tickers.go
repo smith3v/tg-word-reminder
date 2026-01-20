@@ -6,132 +6,159 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"github.com/smith3v/tg-word-reminder/pkg/bot/game"
+	"github.com/smith3v/tg-word-reminder/pkg/bot/training"
 	"github.com/smith3v/tg-word-reminder/pkg/db"
 	"github.com/smith3v/tg-word-reminder/pkg/logger"
 )
 
+const (
+	slotMorningHour   = 8
+	slotAfternoonHour = 13
+	slotEveningHour   = 20
+)
+
 func StartPeriodicMessages(ctx context.Context, b *bot.Bot) {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-ticker.C:
+			processReminders(ctx, b, now.UTC())
+		}
+	}
+}
+
+func processReminders(ctx context.Context, b *bot.Bot, now time.Time) {
 	var users []db.UserSettings
 	if err := db.DB.Find(&users).Error; err != nil {
 		logger.Error("failed to fetch users for reminders", "error", err)
 		return
 	}
 
-	var tickers []struct {
-		ticker *time.Ticker
-		user   db.UserSettings
-	}
-
-	// Initialize tickers for existing users
 	for _, user := range users {
-		tickers = append(tickers, createUserTicker(user)) // Create ticker for each user
+		handleUserReminder(ctx, b, user, now)
+	}
+}
+
+func handleUserReminder(ctx context.Context, b *bot.Bot, user db.UserSettings, now time.Time) {
+	if user.TrainingPaused {
+		return
+	}
+	_, ok := latestDueSlot(now, user)
+	if !ok {
+		return
 	}
 
-	// Ticker for checking user settings and new users every 5 minutes
-	settingsUpdateTicker := time.NewTicker(5 * time.Minute)
-	defer settingsUpdateTicker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			for _, t := range tickers {
-				t.ticker.Stop() // Stop all tickers when context is done
+	missed := computeMissedCount(user)
+	if missed >= 3 {
+		if !user.TrainingPaused {
+			user.TrainingPaused = true
+			user.MissedTrainingSessions = missed
+			if err := db.DB.Save(&user).Error; err != nil {
+				logger.Error("failed to pause reminders", "user_id", user.UserID, "error", err)
+				return
 			}
+			_, _ = b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: user.UserID,
+				Text:   "Paused reminders due to inactivity.",
+			})
+		}
+		return
+	}
+
+	sent, err := sendTrainingSession(ctx, b, user, now)
+	if err != nil {
+		logger.Error("failed to send training session", "user_id", user.UserID, "error", err)
+		return
+	}
+	if !sent {
+		return
+	}
+
+	user.LastTrainingSentAt = &now
+	user.MissedTrainingSessions = missed
+	if err := db.DB.Save(&user).Error; err != nil {
+		logger.Error("failed to update reminder state", "user_id", user.UserID, "error", err)
+	}
+}
+
+func sendTrainingSession(ctx context.Context, b *bot.Bot, user db.UserSettings, now time.Time) (bool, error) {
+	if user.PairsToSend <= 0 {
+		return false, nil
+	}
+	pairs, err := training.SelectSessionPairs(user.UserID, user.PairsToSend, now)
+	if err != nil {
+		return false, err
+	}
+	if len(pairs) == 0 {
+		return false, nil
+	}
+
+	session := training.DefaultManager.StartOrRestart(user.UserID, user.UserID, pairs)
+	card := session.CurrentPair()
+	if card == nil {
+		return false, nil
+	}
+
+	prompt := training.BuildPrompt(*card)
+	msg, err := b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:      user.UserID,
+		Text:        prompt,
+		ParseMode:   models.ParseModeMarkdown,
+		ReplyMarkup: training.BuildKeyboard(session.CurrentToken()),
+	})
+	if err != nil {
+		return false, err
+	}
+
+	training.DefaultManager.SetCurrentMessageID(session, msg.ID)
+	training.DefaultManager.SetCurrentPromptText(session, prompt)
+	return true, nil
+}
+
+func latestDueSlot(now time.Time, user db.UserSettings) (time.Time, bool) {
+	offset := time.Duration(user.TimezoneOffsetHours) * time.Hour
+	localNow := now.Add(offset)
+	year, month, day := localNow.Date()
+
+	var latest time.Time
+	consider := func(enabled bool, hour int) {
+		if !enabled {
 			return
-		case <-settingsUpdateTicker.C:
-			updateUserTickers(&tickers) // Check for user settings updates and new users
-		default:
-			time.Sleep(1000 * time.Millisecond) // Adjust the duration as needed
-			for _, t := range tickers {
-				select {
-				case <-t.ticker.C:
-					sendReminders(ctx, b, t.user) // Send reminders for the corresponding user
-				default:
-					continue
-				}
-			}
+		}
+		localSlot := time.Date(year, month, day, hour, 0, 0, 0, time.UTC)
+		slotUTC := localSlot.Add(-offset)
+		if now.Before(slotUTC) {
+			return
+		}
+		if user.LastTrainingSentAt != nil && !user.LastTrainingSentAt.Before(slotUTC) {
+			return
+		}
+		if latest.IsZero() || slotUTC.After(latest) {
+			latest = slotUTC
 		}
 	}
+
+	consider(user.ReminderMorning, slotMorningHour)
+	consider(user.ReminderAfternoon, slotAfternoonHour)
+	consider(user.ReminderEvening, slotEveningHour)
+
+	if latest.IsZero() {
+		return time.Time{}, false
+	}
+	return latest, true
 }
 
-// Helper function to create a ticker for a user
-func createUserTicker(user db.UserSettings) struct {
-	ticker *time.Ticker
-	user   db.UserSettings
-} {
-	var ticker *time.Ticker
-	switch {
-	case user.RemindersPerDay >= 24*60:
-		ticker = time.NewTicker(time.Minute)
-	case user.RemindersPerDay > 24:
-		interval := time.Duration(24*60/user.RemindersPerDay) * time.Minute
-		ticker = time.NewTicker(interval)
-	default:
-		interval := 24 * time.Hour / time.Duration(user.RemindersPerDay)
-		ticker = time.NewTicker(interval)
+func computeMissedCount(user db.UserSettings) int {
+	missed := user.MissedTrainingSessions
+	if user.LastTrainingSentAt == nil {
+		return missed
 	}
-	return struct {
-		ticker *time.Ticker
-		user   db.UserSettings
-	}{ticker: ticker, user: user}
-}
-
-// Function to update user tickers based on settings changes and check for new users
-func updateUserTickers(tickers *[]struct {
-	ticker *time.Ticker
-	user   db.UserSettings
-}) {
-	var users []db.UserSettings
-	if err := db.DB.Find(&users).Error; err != nil {
-		logger.Error("failed to fetch users for settings update", "error", err)
-		return
+	if user.LastTrainingEngagedAt == nil || user.LastTrainingEngagedAt.Before(*user.LastTrainingSentAt) {
+		return missed + 1
 	}
-
-	existingUserIDs := make(map[int64]struct{})
-	for _, t := range *tickers {
-		existingUserIDs[t.user.UserID] = struct{}{} // Track existing user IDs
-	}
-
-	for _, user := range users {
-		if _, exists := existingUserIDs[user.UserID]; !exists {
-			logger.Debug("new user detected", "user_id", user.UserID)
-			*tickers = append(*tickers, createUserTicker(user)) // Create ticker for new user
-		} else {
-			// Check if the settings have changed
-			for i, t := range *tickers {
-				if t.user.UserID == user.UserID {
-					if t.user.RemindersPerDay != user.RemindersPerDay || t.user.PairsToSend != user.PairsToSend {
-						logger.Debug("user settings updated", "user_id", user.UserID, "old_settings", t.user, "new_settings", user)
-						t.ticker.Stop()                        // Stop the old ticker
-						(*tickers)[i] = createUserTicker(user) // Recreate the ticker with updated settings
-					}
-					break
-				}
-			}
-		}
-	}
-}
-
-func sendReminders(ctx context.Context, b *bot.Bot, user db.UserSettings) {
-	var wordPairs []db.WordPair
-	if err := db.DB.Where("user_id = ?", user.UserID).Order("RANDOM()").Limit(user.PairsToSend).Find(&wordPairs).Error; err != nil {
-		logger.Error("failed to fetch word pairs for user", "user_id", user.UserID, "error", err)
-		return
-	}
-
-	if len(wordPairs) > 0 {
-		message := ""
-		for _, pair := range wordPairs {
-			message += game.PrepareWordPairMessage(pair.Word1, pair.Word2)
-		}
-		_, err := b.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID:    user.UserID,
-			Text:      message,
-			ParseMode: models.ParseModeMarkdown,
-		})
-		if err != nil {
-			logger.Error("failed to send reminder message", "user_id", user.UserID, "error", err)
-		}
-	}
+	return 0
 }

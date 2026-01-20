@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"strings"
 	"time"
 
@@ -13,8 +12,6 @@ import (
 	"github.com/smith3v/tg-word-reminder/pkg/db"
 	"github.com/smith3v/tg-word-reminder/pkg/logger"
 )
-
-const reviewCallbackPrefix = "t:grade:"
 
 func HandleReview(ctx context.Context, b *bot.Bot, update *models.Update) {
 	if update == nil || update.Message == nil || update.Message.From == nil || update.Message.Chat.ID == 0 {
@@ -57,12 +54,12 @@ func HandleReview(ctx context.Context, b *bot.Bot, update *models.Update) {
 		return
 	}
 
-	prompt := buildReviewPrompt(*card)
+	prompt := training.BuildPrompt(*card)
 	msg, err := b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:      update.Message.Chat.ID,
 		Text:        prompt,
 		ParseMode:   models.ParseModeMarkdown,
-		ReplyMarkup: buildReviewKeyboard(session.CurrentToken()),
+		ReplyMarkup: training.BuildKeyboard(session.CurrentToken()),
 	})
 	if err != nil {
 		logger.Error("failed to send review prompt", "user_id", update.Message.From.ID, "error", err)
@@ -70,6 +67,7 @@ func HandleReview(ctx context.Context, b *bot.Bot, update *models.Update) {
 	}
 	training.DefaultManager.SetCurrentMessageID(session, msg.ID)
 	training.DefaultManager.SetCurrentPromptText(session, prompt)
+	training.DefaultManager.Touch(update.Message.Chat.ID, update.Message.From.ID)
 }
 
 func HandleReviewCallback(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -137,18 +135,19 @@ func HandleReviewCallback(ctx context.Context, b *bot.Bot, update *models.Update
 	}
 
 	answerCallback("")
+	training.DefaultManager.Touch(msg.Chat.ID, update.CallbackQuery.From.ID)
 
 	nextPair, nextToken := training.DefaultManager.Advance(msg.Chat.ID, update.CallbackQuery.From.ID)
 	if nextPair == nil {
 		return
 	}
 
-	prompt := buildReviewPrompt(*nextPair)
+	prompt := training.BuildPrompt(*nextPair)
 	nextMsg, err := b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:      msg.Chat.ID,
 		Text:        prompt,
 		ParseMode:   models.ParseModeMarkdown,
-		ReplyMarkup: buildReviewKeyboard(nextToken),
+		ReplyMarkup: training.BuildKeyboard(nextToken),
 	})
 	if err != nil {
 		logger.Error("failed to send next review prompt", "user_id", update.CallbackQuery.From.ID, "error", err)
@@ -162,7 +161,7 @@ func HandleReviewCallback(ctx context.Context, b *bot.Bot, update *models.Update
 }
 
 func parseReviewCallback(data string) (string, training.Grade, bool) {
-	if !strings.HasPrefix(data, reviewCallbackPrefix) {
+	if !strings.HasPrefix(data, training.ReviewCallbackPrefix) {
 		return "", "", false
 	}
 	parts := strings.Split(data, ":")
@@ -181,29 +180,6 @@ func parseReviewCallback(data string) (string, training.Grade, bool) {
 		return token, training.GradeEasy, true
 	default:
 		return "", "", false
-	}
-}
-
-func buildReviewPrompt(pair db.WordPair) string {
-	shown := pair.Word1
-	expected := pair.Word2
-	if rand.Intn(2) == 0 {
-		shown = pair.Word2
-		expected = pair.Word1
-	}
-	return fmt.Sprintf("%s → ||%s||", bot.EscapeMarkdown(shown), bot.EscapeMarkdown(expected))
-}
-
-func buildReviewKeyboard(token string) *models.InlineKeyboardMarkup {
-	return &models.InlineKeyboardMarkup{
-		InlineKeyboard: [][]models.InlineKeyboardButton{
-			{
-				{Text: "Again", CallbackData: fmt.Sprintf("%s%s:again", reviewCallbackPrefix, token)},
-				{Text: "Hard", CallbackData: fmt.Sprintf("%s%s:hard", reviewCallbackPrefix, token)},
-				{Text: "Good", CallbackData: fmt.Sprintf("%s%s:good", reviewCallbackPrefix, token)},
-				{Text: "Easy", CallbackData: fmt.Sprintf("%s%s:easy", reviewCallbackPrefix, token)},
-			},
-		},
 	}
 }
 
