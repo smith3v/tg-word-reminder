@@ -68,6 +68,7 @@ func HandleReview(ctx context.Context, b *bot.Bot, update *models.Update) {
 	training.DefaultManager.SetCurrentMessageID(session, msg.ID)
 	training.DefaultManager.SetCurrentPromptText(session, prompt)
 	training.DefaultManager.Touch(update.Message.Chat.ID, update.Message.From.ID)
+	markTrainingEngaged(update.Message.From.ID, now)
 }
 
 func HandleReviewCallback(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -136,6 +137,7 @@ func HandleReviewCallback(ctx context.Context, b *bot.Bot, update *models.Update
 
 	answerCallback("")
 	training.DefaultManager.Touch(msg.Chat.ID, update.CallbackQuery.From.ID)
+	markTrainingEngaged(update.CallbackQuery.From.ID, now)
 
 	nextPair, nextToken := training.DefaultManager.Advance(msg.Chat.ID, update.CallbackQuery.From.ID)
 	if nextPair == nil {
@@ -189,4 +191,20 @@ func formatReviewResolvedText(prompt string, grade training.Grade) string {
 		return label
 	}
 	return fmt.Sprintf("%s\n%s", prompt, label)
+}
+
+func markTrainingEngaged(userID int64, now time.Time) {
+	if userID == 0 {
+		return
+	}
+	updates := map[string]interface{}{
+		"last_training_engaged_at": now,
+		"missed_training_sessions": 0,
+		"training_paused":          false,
+	}
+	if err := db.DB.Model(&db.UserSettings{}).
+		Where("user_id = ?", userID).
+		Updates(updates).Error; err != nil {
+		logger.Error("failed to update training engagement", "user_id", userID, "error", err)
+	}
 }

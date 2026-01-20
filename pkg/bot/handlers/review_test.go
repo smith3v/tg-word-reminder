@@ -37,6 +37,14 @@ func TestHandleReviewCallbackUpdatesPair(t *testing.T) {
 	logger.SetLogLevel(logger.ERROR)
 	training.ResetDefaultManager(time.Now)
 
+	if err := db.DB.Create(&db.UserSettings{
+		UserID:                 3002,
+		MissedTrainingSessions: 2,
+		TrainingPaused:         true,
+	}).Error; err != nil {
+		t.Fatalf("failed to seed user settings: %v", err)
+	}
+
 	now := time.Now().UTC().Add(-time.Hour)
 	pairs := []db.WordPair{
 		{UserID: 3002, Word1: "hola", Word2: "adios", SrsState: "new", SrsDueAt: now},
@@ -75,6 +83,17 @@ func TestHandleReviewCallbackUpdatesPair(t *testing.T) {
 		t.Fatalf("expected last reviewed timestamp to be set")
 	}
 
+	var settings db.UserSettings
+	if err := db.DB.Where("user_id = ?", 3002).First(&settings).Error; err != nil {
+		t.Fatalf("failed to load settings: %v", err)
+	}
+	if settings.MissedTrainingSessions != 0 || settings.TrainingPaused {
+		t.Fatalf("expected engagement reset, got %+v", settings)
+	}
+	if settings.LastTrainingEngagedAt == nil {
+		t.Fatalf("expected engagement timestamp to be set")
+	}
+
 	sendCount := 0
 	editCount := 0
 	for _, req := range client.requests {
@@ -90,5 +109,47 @@ func TestHandleReviewCallbackUpdatesPair(t *testing.T) {
 	}
 	if editCount < 1 {
 		t.Fatalf("expected editMessageText call, got %d", editCount)
+	}
+}
+
+func TestHandleReviewMarksEngagementOnStart(t *testing.T) {
+	testutil.SetupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+	training.ResetDefaultManager(time.Now)
+
+	if err := db.DB.Create(&db.UserSettings{
+		UserID:                 3003,
+		MissedTrainingSessions: 1,
+		TrainingPaused:         true,
+	}).Error; err != nil {
+		t.Fatalf("failed to seed user settings: %v", err)
+	}
+	if err := db.DB.Create(&db.WordPair{
+		UserID:   3003,
+		Word1:    "hola",
+		Word2:    "adios",
+		SrsState: "new",
+		SrsDueAt: time.Now().Add(-time.Minute),
+	}).Error; err != nil {
+		t.Fatalf("failed to seed word pair: %v", err)
+	}
+
+	client := newMockClient()
+	client.response = `{"ok":true,"result":{"message_id":99}}`
+	b := newTestTelegramBot(t, client)
+	update := newTestUpdate("/review", 3003)
+	update.Message.Chat.Type = models.ChatTypePrivate
+
+	HandleReview(context.Background(), b, update)
+
+	var settings db.UserSettings
+	if err := db.DB.Where("user_id = ?", 3003).First(&settings).Error; err != nil {
+		t.Fatalf("failed to load settings: %v", err)
+	}
+	if settings.MissedTrainingSessions != 0 || settings.TrainingPaused {
+		t.Fatalf("expected engagement reset on start, got %+v", settings)
+	}
+	if settings.LastTrainingEngagedAt == nil {
+		t.Fatalf("expected engagement timestamp to be set")
 	}
 }
