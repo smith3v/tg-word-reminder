@@ -34,6 +34,7 @@ func DefaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 				"\\* /start: initialize your account\\.\n" +
 				"\\* /getpair: get a random word pair\\.\n" +
 				"\\* /game: start a quiz session\\.\n" +
+				"\\* /review: start a review session\\.\n" +
 				"\\* /settings: configure reminders and pair counts\\.\n" +
 				"\\* /export: download your vocabulary\\.\n" +
 				"\\* /clear: remove all uploaded word pairs\\.\n\n" +
