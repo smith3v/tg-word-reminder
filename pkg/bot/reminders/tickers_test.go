@@ -217,3 +217,36 @@ func TestSendTrainingSessionSendsPrompt(t *testing.T) {
 		t.Fatalf("expected spoiler in prompt, got %q", got)
 	}
 }
+
+func TestOverduePromptTriggers(t *testing.T) {
+	testutil.SetupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+	training.ResetDefaultManager(time.Now)
+
+	now := time.Date(2025, 1, 2, 13, 30, 0, 0, time.UTC)
+	user := db.UserSettings{
+		UserID:              20,
+		PairsToSend:         1,
+		ReminderAfternoon:   true,
+		TimezoneOffsetHours: 0,
+	}
+	if err := db.DB.Create(&user).Error; err != nil {
+		t.Fatalf("failed to seed user settings: %v", err)
+	}
+	if err := db.DB.Create(&[]db.WordPair{
+		{UserID: 20, Word1: "a", Word2: "b", SrsState: "review", SrsDueAt: now.Add(-time.Hour)},
+		{UserID: 20, Word1: "c", Word2: "d", SrsState: "review", SrsDueAt: now.Add(-2 * time.Hour)},
+	}).Error; err != nil {
+		t.Fatalf("failed to seed pairs: %v", err)
+	}
+
+	client := newMockClient()
+	b := newTestTelegramBot(t, client)
+
+	handleUserReminder(context.Background(), b, user, now)
+
+	got := client.lastMessageText(t)
+	if !strings.Contains(got, "catch up") {
+		t.Fatalf("expected overdue prompt, got %q", got)
+	}
+}

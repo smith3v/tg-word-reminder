@@ -32,6 +32,7 @@ func StartPeriodicMessages(ctx context.Context, b *bot.Bot) {
 }
 
 func processReminders(ctx context.Context, b *bot.Bot, now time.Time) {
+	training.DefaultOverdue.SweepExpired(now)
 	var users []db.UserSettings
 	if err := db.DB.Find(&users).Error; err != nil {
 		logger.Error("failed to fetch users for reminders", "error", err)
@@ -65,6 +66,29 @@ func handleUserReminder(ctx context.Context, b *bot.Bot, user db.UserSettings, n
 				ChatID: user.UserID,
 				Text:   "Paused reminders due to inactivity.",
 			})
+		}
+		return
+	}
+
+	overdueCount, err := countOverdue(user.UserID, now)
+	if err != nil {
+		logger.Error("failed to count overdue cards", "user_id", user.UserID, "error", err)
+		return
+	}
+	sessionSize := user.PairsToSend
+	capacity := sessionSize * countEnabledSlots(user)
+	if sessionSize > 0 && (overdueCount > sessionSize || (capacity > 0 && overdueCount > capacity)) {
+		sent, err := sendOverduePrompt(ctx, b, user, now)
+		if err != nil {
+			logger.Error("failed to send overdue prompt", "user_id", user.UserID, "error", err)
+			return
+		}
+		if sent {
+			user.LastTrainingSentAt = &now
+			user.MissedTrainingSessions = missed
+			if err := db.DB.Save(&user).Error; err != nil {
+				logger.Error("failed to update reminder state", "user_id", user.UserID, "error", err)
+			}
 		}
 		return
 	}
@@ -161,4 +185,54 @@ func computeMissedCount(user db.UserSettings) int {
 		return missed + 1
 	}
 	return 0
+}
+
+func countEnabledSlots(user db.UserSettings) int {
+	count := 0
+	if user.ReminderMorning {
+		count++
+	}
+	if user.ReminderAfternoon {
+		count++
+	}
+	if user.ReminderEvening {
+		count++
+	}
+	return count
+}
+
+func countOverdue(userID int64, now time.Time) (int, error) {
+	var count int64
+	if err := db.DB.Model(&db.WordPair{}).
+		Where("user_id = ? AND srs_due_at <= ?", userID, now).
+		Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return int(count), nil
+}
+
+func sendOverduePrompt(ctx context.Context, b *bot.Bot, user db.UserSettings, now time.Time) (bool, error) {
+	token := training.DefaultOverdue.Start(user.UserID, user.UserID)
+	text := "You have a lot to catch up on. What would you like to do?"
+	keyboard := &models.InlineKeyboardMarkup{
+		InlineKeyboard: [][]models.InlineKeyboardButton{
+			{
+				{Text: "Catch up now", CallbackData: training.OverdueCallbackPrefix + token + ":catch"},
+			},
+			{
+				{Text: "Snooze 1 day", CallbackData: training.OverdueCallbackPrefix + token + ":snooze1d"},
+				{Text: "Snooze 1 week", CallbackData: training.OverdueCallbackPrefix + token + ":snooze1w"},
+			},
+		},
+	}
+	msg, err := b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:      user.UserID,
+		Text:        text,
+		ReplyMarkup: keyboard,
+	})
+	if err != nil {
+		return false, err
+	}
+	training.DefaultOverdue.BindMessage(user.UserID, user.UserID, token, msg.ID)
+	return true, nil
 }

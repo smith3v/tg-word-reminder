@@ -153,3 +153,45 @@ func TestHandleReviewMarksEngagementOnStart(t *testing.T) {
 		t.Fatalf("expected engagement timestamp to be set")
 	}
 }
+
+func TestHandleOverdueCallbackCatchUp(t *testing.T) {
+	testutil.SetupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+	training.ResetDefaultManager(time.Now)
+
+	if err := db.DB.Create(&db.UserSettings{
+		UserID:      4001,
+		PairsToSend: 1,
+	}).Error; err != nil {
+		t.Fatalf("failed to seed settings: %v", err)
+	}
+	if err := db.DB.Create(&db.WordPair{
+		UserID:   4001,
+		Word1:    "hola",
+		Word2:    "adios",
+		SrsState: "new",
+		SrsDueAt: time.Now().Add(-time.Minute),
+	}).Error; err != nil {
+		t.Fatalf("failed to seed word pair: %v", err)
+	}
+
+	client := newMockClient()
+	client.response = `{"ok":true,"result":{"message_id":77}}`
+	b := newTestTelegramBot(t, client)
+
+	token := training.DefaultOverdue.Start(4001, 4001)
+	training.DefaultOverdue.BindMessage(4001, 4001, token, 10)
+	update := newTestCallbackUpdate("t:overdue:"+token+":catch", 4001, 4001, 10)
+
+	HandleOverdueCallback(context.Background(), b, update)
+
+	sendCount := 0
+	for _, req := range client.requests {
+		if strings.Contains(req.path, "sendMessage") {
+			sendCount++
+		}
+	}
+	if sendCount < 1 {
+		t.Fatalf("expected sendMessage for catch-up")
+	}
+}

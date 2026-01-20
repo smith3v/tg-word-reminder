@@ -67,6 +67,7 @@ func main() {
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "s:", bot.MatchTypePrefix, handlers.HandleSettingsCallback)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "g:r:", bot.MatchTypePrefix, handlers.HandleGameCallback)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "t:grade:", bot.MatchTypePrefix, handlers.HandleReviewCallback)
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "t:overdue:", bot.MatchTypePrefix, handlers.HandleOverdueCallback)
 
 	go reminders.StartPeriodicMessages(ctx, b)
 	go game.StartGameSweeper(ctx, botSender{b: b})
