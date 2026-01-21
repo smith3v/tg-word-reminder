@@ -199,7 +199,31 @@ Commit with the summary of the change as a commit message.
 
 ---
 
-### Task 9: End-to-end regression tests and cleanup
+### Task 9: Make `/getpair` a one-card review session
+
+**Prompt:**
+Update `/getpair` to behave like a one-card review session using the same selection and grading flow as `/review`.
+- Implement the minimal code to update `pkg/bot/handlers/pairs.go`:
+  - Replace the random `Order("RANDOM()")` lookup with `training.SelectSessionPairs(userID, 1, now)`.
+  - If there are no due or new cards, reply with "Nothing to review right now."
+  - Start a training session via `training.DefaultManager.StartOrRestart(chatID, userID, pairs)`.
+  - Send the prompt via `training.BuildPrompt` and `training.BuildKeyboard`.
+  - Store the current message ID/prompt in the session (same as `/review`).
+- Keep the existing grading callback path (no new callback prefix); `/getpair` uses the same `t:grade` flow.
+
+Write the tests for the new code:
+- Update `pkg/bot/handlers/pairs_test.go` to cover:
+  - `/getpair` returns "Nothing to review right now." when no pairs exist.
+  - `/getpair` sends the review prompt and uses the grading keyboard for one due/new card.
+
+Run the tests and make sure they pass:
+- `go test ./...` (expect all `ok`).
+
+Commit with the summary of the change as a commit message.
+
+---
+
+### Task 10: End-to-end regression tests and cleanup
 
 **Prompt:**
 Ensure all tests pass and behavior matches the spec.
