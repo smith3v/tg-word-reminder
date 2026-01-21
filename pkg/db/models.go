@@ -3,6 +3,8 @@ package db
 
 import "time"
 
+const SrsNewRankMax = 1000000000
+
 type WordPair struct {
 	ID                uint      `gorm:"primaryKey"`
 	UserID            int64     `gorm:"index;uniqueIndex:idx_user_word1;index:idx_user_due"` // To keep pairs separate for each user
@@ -16,6 +18,7 @@ type WordPair struct {
 	SrsStep           int     `gorm:"not null;default:0"`
 	SrsReps           int     `gorm:"not null;default:0"`
 	SrsLapses         int     `gorm:"not null;default:0"`
+	SrsNewRank        int     `gorm:"not null;default:0"`
 }
 
 type UserSettings struct {

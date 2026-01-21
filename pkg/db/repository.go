@@ -34,6 +34,10 @@ func InitDB(cfg config.DatabaseConfig) error {
 		logger.Error("failed to migrate reminder slots", "error", err)
 		return err
 	}
+	if err := migrateNewRanks(DB); err != nil {
+		logger.Error("failed to migrate new ranks", "error", err)
+		return err
+	}
 	return nil
 }
 
@@ -66,4 +70,34 @@ WHERE reminders_per_day IS NOT NULL
   AND reminder_evening = FALSE
 `
 	return db.Exec(query).Error
+}
+
+func migrateNewRanks(db *gorm.DB) error {
+	if db == nil {
+		return nil
+	}
+	if !db.Migrator().HasColumn(&WordPair{}, "srs_new_rank") {
+		return nil
+	}
+
+	switch db.Dialector.Name() {
+	case "sqlite":
+		return db.Exec(`
+UPDATE word_pairs
+SET srs_new_rank = abs(random()) % 1000000000 + 1
+WHERE srs_new_rank = 0
+`).Error
+	case "postgres":
+		return db.Exec(`
+UPDATE word_pairs
+SET srs_new_rank = floor(random() * 1000000000)::int + 1
+WHERE srs_new_rank = 0
+`).Error
+	default:
+		return db.Exec(`
+UPDATE word_pairs
+SET srs_new_rank = 1
+WHERE srs_new_rank = 0
+`).Error
+	}
 }

@@ -105,6 +105,9 @@ func TestUpsertWordPairs(t *testing.T) {
 	if pairs[0].SrsDueAt.IsZero() {
 		t.Fatalf("expected default SRS due date set, got %+v", pairs[0])
 	}
+	if pairs[0].SrsNewRank == 0 {
+		t.Fatalf("expected new pair to have SRS new rank set, got %+v", pairs[0])
+	}
 }
 
 func TestBuildExportCSV(t *testing.T) {
