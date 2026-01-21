@@ -92,7 +92,7 @@ This capacity is used for overdue decisions only. `/review` ignores the capacity
 
 ### Selection order
 1. Due cards: `srs_due_at <= now`, ordered by oldest `srs_due_at` first.
-2. New cards: `srs_state == new`, ordered by oldest `id` first.
+2. New cards: `srs_state == new`, ordered by `srs_new_rank` (ascending), then `id`.
 
 Due cards are always used first. If due cards are fewer than the session size,
 fill with new cards up to the session size.
@@ -141,6 +141,11 @@ Each field includes its meaning and how it is used by the algorithm.
 - `srs_lapses` (int)
   - Count of lapses (Again in `review`).
 
+- `srs_new_rank` (float or int)
+  - Stable per-pair shuffle rank for ordering new cards.
+  - Assigned randomly on import/creation.
+  - Used only to order `new` cards; does not affect scheduling intervals.
+
 ### Defaults for existing pairs
 On migration, all existing pairs become `new` with:
 - `srs_state = new`
@@ -148,6 +153,7 @@ On migration, all existing pairs become `new` with:
 - `srs_interval_days = 0`
 - `srs_ease = 2.5`
 - `srs_step = 0`
+- `srs_new_rank = random()`
 
 ### user_settings changes
 - Reuse `pairs_to_send` as "Cards per session".
