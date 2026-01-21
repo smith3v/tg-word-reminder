@@ -15,8 +15,9 @@
 
 ### On-demand: `/review`
 - Private chat only.
-- Fixed session size: 10 cards.
+- Session size uses the "Cards per session" setting.
 - If there are no due or new cards, reply with "Nothing to review right now."
+- When the session finishes, send a short completion summary (e.g. "Well done reviewing N cards.").
 
 ### Auto reminders
 - Replace existing random reminders with SRS sessions.
@@ -87,7 +88,7 @@ This capacity is used for overdue decisions only. `/review` ignores the capacity
 ## Session Assembly
 
 ### Session size
-- `/review`: 10 cards.
+- `/review`: `cards_per_session` from user settings.
 - Auto reminders: `cards_per_session` (default 5).
 
 ### Selection order

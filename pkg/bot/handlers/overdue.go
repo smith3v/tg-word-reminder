@@ -53,6 +53,7 @@ func HandleOverdueCallback(ctx context.Context, b *bot.Bot, update *models.Updat
 	}
 
 	now := time.Now().UTC()
+	responseText := "Got it."
 	switch action {
 	case "catch":
 		if err := startCatchUp(ctx, b, update.CallbackQuery.From.ID, now); err != nil {
@@ -60,18 +61,21 @@ func HandleOverdueCallback(ctx context.Context, b *bot.Bot, update *models.Updat
 			answerCallback("Failed to start")
 			return
 		}
+		responseText = "Let's catch up right away."
 	case "snooze1d":
 		if err := snoozeOverdue(update.CallbackQuery.From.ID, now.Add(24*time.Hour), now); err != nil {
 			logger.Error("failed to snooze overdue", "user_id", update.CallbackQuery.From.ID, "error", err)
 			answerCallback("Failed to snooze")
 			return
 		}
+		responseText = "Snoozed catch up for 1 day."
 	case "snooze1w":
 		if err := snoozeOverdue(update.CallbackQuery.From.ID, now.Add(7*24*time.Hour), now); err != nil {
 			logger.Error("failed to snooze overdue", "user_id", update.CallbackQuery.From.ID, "error", err)
 			answerCallback("Failed to snooze")
 			return
 		}
+		responseText = "Snoozed catch up for a week."
 	default:
 		answerCallback("Not active")
 		return
@@ -80,7 +84,7 @@ func HandleOverdueCallback(ctx context.Context, b *bot.Bot, update *models.Updat
 	if _, err := b.EditMessageText(ctx, &bot.EditMessageTextParams{
 		ChatID:    msg.Chat.ID,
 		MessageID: msg.ID,
-		Text:      "Got it. ✅",
+		Text:      responseText,
 		ReplyMarkup: &models.InlineKeyboardMarkup{
 			InlineKeyboard: [][]models.InlineKeyboardButton{},
 		},

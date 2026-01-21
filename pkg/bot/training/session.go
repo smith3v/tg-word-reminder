@@ -19,6 +19,8 @@ type Session struct {
 	currentMessageID  int
 	currentPromptText string
 	lastActivityAt    time.Time
+	totalPairs        int
+	reviewedCount     int
 }
 
 func (s *Session) CurrentPair() *db.WordPair {
@@ -82,6 +84,7 @@ func (m *SessionManager) StartOrRestart(chatID, userID int64, pairs []db.WordPai
 		userID:         userID,
 		queue:          append([]db.WordPair(nil), pairs...),
 		lastActivityAt: now,
+		totalPairs:     len(pairs),
 	}
 	key := getSessionKey(chatID, userID)
 	m.mu.Lock()
@@ -89,6 +92,20 @@ func (m *SessionManager) StartOrRestart(chatID, userID int64, pairs []db.WordPai
 	m.nextPromptLocked(session)
 	m.mu.Unlock()
 	return session
+}
+
+func (m *SessionManager) MarkReviewed(chatID, userID int64) (int, int) {
+	key := getSessionKey(chatID, userID)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	session := m.sessions[key]
+	if session == nil {
+		return 0, 0
+	}
+	if session.reviewedCount < session.totalPairs {
+		session.reviewedCount++
+	}
+	return session.reviewedCount, session.totalPairs
 }
 
 func (m *SessionManager) GetSession(chatID, userID int64) *Session {

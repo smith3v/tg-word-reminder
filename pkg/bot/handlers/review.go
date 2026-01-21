@@ -27,7 +27,15 @@ func HandleReview(ctx context.Context, b *bot.Bot, update *models.Update) {
 	}
 
 	now := time.Now().UTC()
-	pairs, err := training.SelectSessionPairs(update.Message.From.ID, 10, now)
+	size := 10
+	var settings db.UserSettings
+	if err := db.DB.Where("user_id = ?", update.Message.From.ID).First(&settings).Error; err != nil {
+		logger.Error("failed to load review settings", "user_id", update.Message.From.ID, "error", err)
+	} else if settings.PairsToSend > 0 {
+		size = settings.PairsToSend
+	}
+
+	pairs, err := training.SelectSessionPairs(update.Message.From.ID, size, now)
 	if err != nil {
 		logger.Error("failed to load review pairs", "user_id", update.Message.From.ID, "error", err)
 		b.SendMessage(ctx, &bot.SendMessageParams{
@@ -122,6 +130,8 @@ func HandleReviewCallback(ctx context.Context, b *bot.Bot, update *models.Update
 		return
 	}
 
+	reviewedCount, _ := training.DefaultManager.MarkReviewed(msg.Chat.ID, update.CallbackQuery.From.ID)
+
 	updatedText := formatReviewResolvedText(snapshot.PromptText, grade)
 	if _, err := b.EditMessageText(ctx, &bot.EditMessageTextParams{
 		ChatID:    msg.Chat.ID,
@@ -141,6 +151,12 @@ func HandleReviewCallback(ctx context.Context, b *bot.Bot, update *models.Update
 
 	nextPair, nextToken := training.DefaultManager.Advance(msg.Chat.ID, update.CallbackQuery.From.ID)
 	if nextPair == nil {
+		if reviewedCount > 0 {
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: msg.Chat.ID,
+				Text:   formatReviewCompletion(reviewedCount),
+			})
+		}
 		return
 	}
 
@@ -191,6 +207,13 @@ func formatReviewResolvedText(prompt string, grade training.Grade) string {
 		return label
 	}
 	return fmt.Sprintf("%s\n%s", prompt, label)
+}
+
+func formatReviewCompletion(count int) string {
+	if count == 1 {
+		return "Well done reviewing a card."
+	}
+	return fmt.Sprintf("Well done reviewing %d cards.", count)
 }
 
 func markTrainingEngaged(userID int64, now time.Time) {

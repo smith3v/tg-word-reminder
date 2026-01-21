@@ -41,6 +41,7 @@ func TestHandleReviewCallbackUpdatesPair(t *testing.T) {
 		UserID:                 3002,
 		MissedTrainingSessions: 2,
 		TrainingPaused:         true,
+		PairsToSend:            2,
 	}).Error; err != nil {
 		t.Fatalf("failed to seed user settings: %v", err)
 	}
@@ -121,6 +122,7 @@ func TestHandleReviewMarksEngagementOnStart(t *testing.T) {
 		UserID:                 3003,
 		MissedTrainingSessions: 1,
 		TrainingPaused:         true,
+		PairsToSend:            1,
 	}).Error; err != nil {
 		t.Fatalf("failed to seed user settings: %v", err)
 	}
@@ -151,6 +153,49 @@ func TestHandleReviewMarksEngagementOnStart(t *testing.T) {
 	}
 	if settings.LastTrainingEngagedAt == nil {
 		t.Fatalf("expected engagement timestamp to be set")
+	}
+}
+
+func TestHandleReviewCompletionMessage(t *testing.T) {
+	testutil.SetupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+	training.ResetDefaultManager(time.Now)
+
+	if err := db.DB.Create(&db.WordPair{
+		UserID:   3004,
+		Word1:    "hola",
+		Word2:    "adios",
+		SrsState: "new",
+		SrsDueAt: time.Now().Add(-time.Minute),
+	}).Error; err != nil {
+		t.Fatalf("failed to seed word pair: %v", err)
+	}
+	if err := db.DB.Create(&db.UserSettings{
+		UserID:      3004,
+		PairsToSend: 1,
+	}).Error; err != nil {
+		t.Fatalf("failed to seed user settings: %v", err)
+	}
+
+	client := newMockClient()
+	client.response = `{"ok":true,"result":{"message_id":101}}`
+	b := newTestTelegramBot(t, client)
+	update := newTestUpdate("/review", 3004)
+	update.Message.Chat.Type = models.ChatTypePrivate
+
+	HandleReview(context.Background(), b, update)
+
+	snapshot, ok := training.DefaultManager.Snapshot(3004, 3004)
+	if !ok {
+		t.Fatalf("expected active review session")
+	}
+
+	callback := newTestCallbackUpdate(fmt.Sprintf("t:grade:%s:good", snapshot.Token), 3004, 3004, snapshot.MessageID)
+	HandleReviewCallback(context.Background(), b, callback)
+
+	got := client.lastMessageText(t)
+	if !strings.Contains(got, "Well done reviewing a card") {
+		t.Fatalf("expected completion message, got %q", got)
 	}
 }
 
