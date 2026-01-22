@@ -150,7 +150,19 @@ The bot uses a PostgreSQL database. Ensure that the database is set up and acces
 
 ## Logging
 
-The bot uses the standard library's `slog` package for logging. Logs will be printed to the console.
+The bot uses the standard library's `slog` package for logging. Logs are printed to stdout by default.
+
+Optional `config.json` logging settings:
+```json
+"logging": {
+  "level": "info",
+  "file": "/app/logs/tg-word-reminder.log"
+}
+```
+- `level`: `debug`, `info`, or `error` (defaults to `info`).
+- `file`: when set, logs are written to both stdout and the file path.
+
+`compose.yml` mounts `./logs` to `/app/logs` so file logs persist across container restarts.
 
 ## Contributing
 

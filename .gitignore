@@ -4,5 +4,6 @@ config.json*
 /tg-word-reminder
 .DS_Store
 .gocache
-pgdata/
-backups/
+pgdata
+backups
+logs

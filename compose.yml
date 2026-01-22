@@ -5,6 +5,7 @@ services:
     image: ghcr.io/smith3v/tg-word-reminder:latest
     volumes:
       - ./config.json:/app/config.json:ro
+      - ./logs:/app/logs
     restart: "always"
     depends_on:
       db:
