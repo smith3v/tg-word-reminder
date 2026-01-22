@@ -193,9 +193,14 @@ func TestHandleReviewCompletionMessage(t *testing.T) {
 	callback := newTestCallbackUpdate(fmt.Sprintf("t:grade:%s:good", snapshot.Token), 3004, 3004, snapshot.MessageID)
 	HandleReviewCallback(context.Background(), b, callback)
 
-	got := client.lastMessageText(t)
-	if !strings.Contains(got, "Well done reviewing a card") {
-		t.Fatalf("expected completion message, got %q", got)
+	sendCount := 0
+	for _, req := range client.requests {
+		if strings.Contains(req.path, "sendMessage") {
+			sendCount++
+		}
+	}
+	if sendCount != 1 {
+		t.Fatalf("expected only the initial prompt, got %d sendMessage calls", sendCount)
 	}
 }
 
