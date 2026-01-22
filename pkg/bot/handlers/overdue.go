@@ -68,6 +68,7 @@ func HandleOverdueCallback(ctx context.Context, b *bot.Bot, update *models.Updat
 			answerCallback("Failed to snooze")
 			return
 		}
+		training.DefaultManager.End(msg.Chat.ID, update.CallbackQuery.From.ID)
 		responseText = "Snoozed catch up for 1 day."
 	case "snooze1w":
 		if err := snoozeOverdue(update.CallbackQuery.From.ID, now.Add(7*24*time.Hour), now); err != nil {
@@ -75,6 +76,7 @@ func HandleOverdueCallback(ctx context.Context, b *bot.Bot, update *models.Updat
 			answerCallback("Failed to snooze")
 			return
 		}
+		training.DefaultManager.End(msg.Chat.ID, update.CallbackQuery.From.ID)
 		responseText = "Snoozed catch up for a week."
 	default:
 		answerCallback("Not active")

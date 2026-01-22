@@ -162,18 +162,17 @@ Commit with the summary of the change as a commit message.
 
 ---
 
-### Task 7: Overdue choice flow (catch-up / snooze)
+### Task 7: Overdue flow with immediate catch-up + snooze buttons
 
 **Prompt:**
-Implement the overdue choice prompt and snooze behavior.
-- Add a callback prefix for overdue actions (e.g., `t:overdue:<token>:catch|snooze1d|snooze1w`).
+Implement the overdue flow that starts catch-up immediately while offering snooze buttons on the first card.
 - In reminders:
-  - When overdue count exceeds session size or daily capacity, send a choice message instead of a session.
-  - On snooze, shift all due cards by +1d or +1w using a DB `UPDATE`.
-  - On catch-up, immediately start a session.
+  - When overdue count exceeds session size or daily capacity, start a catch-up session right away.
+  - Add `Snooze 1 day` and `Snooze 1 week` buttons to the first catch-up prompt.
+  - Snooze actions shift all due cards by +1d or +1w using a DB `UPDATE`, then end the session (no more cards sent).
 
 Write the tests for the new code:
-- Add unit tests verifying the overdue condition and snooze updates.
+- Add unit tests verifying the overdue condition, snooze updates, and that the first card includes snooze buttons.
 
 Run the tests and make sure they pass:
 - `go test ./...` (expect all `ok`).

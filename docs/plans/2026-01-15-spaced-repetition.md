@@ -42,8 +42,7 @@
 
 ### Overdue handling
 At the next scheduled reminder, if the overdue count is too large for the normal daily capacity,
-show a choice instead of starting immediately:
-- `Catch up now`
+start the catch-up session immediately and include snooze actions on the first card:
 - `Snooze 1 day`
 - `Snooze 1 week`
 
@@ -53,6 +52,7 @@ Condition to show the prompt:
 Snooze behavior:
 - For each card with `srs_due_at <= now`, set `srs_due_at = now + delta`.
 - Do not change `srs_state`, `srs_interval_days`, or `srs_ease`.
+- If snoozed, end the current catch-up session (no further cards sent).
 
 ### Inactivity pause
 If the user ignores 3 consecutive reminder sessions, pause future auto reminders until they re-engage.

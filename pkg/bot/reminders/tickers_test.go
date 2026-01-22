@@ -96,6 +96,15 @@ func (m *mockClient) lastMessageText(t *testing.T) string {
 	return ""
 }
 
+func (m *mockClient) lastRequestBody(t *testing.T) string {
+	t.Helper()
+	if len(m.requests) == 0 {
+		t.Fatalf("expected at least one recorded request")
+	}
+	req := m.requests[len(m.requests)-1]
+	return string(req.body)
+}
+
 func newTestTelegramBot(t *testing.T, client *mockClient) *telegram.Bot {
 	t.Helper()
 	b, err := telegram.New("test-token",
@@ -246,7 +255,12 @@ func TestOverduePromptTriggers(t *testing.T) {
 	handleUserReminder(context.Background(), b, user, now)
 
 	got := client.lastMessageText(t)
-	if !strings.Contains(got, "catch up") {
-		t.Fatalf("expected overdue prompt, got %q", got)
+	if !strings.Contains(got, "||") {
+		t.Fatalf("expected review prompt, got %q", got)
+	}
+
+	body := client.lastRequestBody(t)
+	if !strings.Contains(body, "snooze1d") || !strings.Contains(body, "snooze1w") {
+		t.Fatalf("expected snooze actions in keyboard, got %q", body)
 	}
 }

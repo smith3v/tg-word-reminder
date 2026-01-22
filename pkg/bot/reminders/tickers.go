@@ -78,9 +78,9 @@ func handleUserReminder(ctx context.Context, b *bot.Bot, user db.UserSettings, n
 	sessionSize := user.PairsToSend
 	capacity := sessionSize * countEnabledSlots(user)
 	if sessionSize > 0 && (overdueCount > sessionSize || (capacity > 0 && overdueCount > capacity)) {
-		sent, err := sendOverduePrompt(ctx, b, user, now)
+		sent, err := sendOverdueSession(ctx, b, user, now)
 		if err != nil {
-			logger.Error("failed to send overdue prompt", "user_id", user.UserID, "error", err)
+			logger.Error("failed to send overdue session", "user_id", user.UserID, "error", err)
 			return
 		}
 		if sent {
@@ -211,28 +211,49 @@ func countOverdue(userID int64, now time.Time) (int, error) {
 	return int(count), nil
 }
 
-func sendOverduePrompt(ctx context.Context, b *bot.Bot, user db.UserSettings, now time.Time) (bool, error) {
-	token := training.DefaultOverdue.Start(user.UserID, user.UserID)
-	text := "You have a lot to catch up on. What would you like to do?"
-	keyboard := &models.InlineKeyboardMarkup{
-		InlineKeyboard: [][]models.InlineKeyboardButton{
-			{
-				{Text: "Catch up now", CallbackData: training.OverdueCallbackPrefix + token + ":catch"},
-			},
-			{
-				{Text: "Snooze 1 day", CallbackData: training.OverdueCallbackPrefix + token + ":snooze1d"},
-				{Text: "Snooze 1 week", CallbackData: training.OverdueCallbackPrefix + token + ":snooze1w"},
-			},
-		},
+func sendOverdueSession(ctx context.Context, b *bot.Bot, user db.UserSettings, now time.Time) (bool, error) {
+	if user.PairsToSend <= 0 {
+		return false, nil
 	}
+	pairs, err := training.SelectSessionPairs(user.UserID, user.PairsToSend, now)
+	if err != nil {
+		return false, err
+	}
+	if len(pairs) == 0 {
+		return false, nil
+	}
+
+	session := training.DefaultManager.StartOrRestart(user.UserID, user.UserID, pairs)
+	card := session.CurrentPair()
+	if card == nil {
+		return false, nil
+	}
+
+	overdueToken := training.DefaultOverdue.Start(user.UserID, user.UserID)
+	prompt := training.BuildPrompt(*card)
 	msg, err := b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:      user.UserID,
-		Text:        text,
-		ReplyMarkup: keyboard,
+		Text:        prompt,
+		ParseMode:   models.ParseModeMarkdown,
+		ReplyMarkup: buildOverdueKeyboard(session.CurrentToken(), overdueToken),
 	})
 	if err != nil {
 		return false, err
 	}
-	training.DefaultOverdue.BindMessage(user.UserID, user.UserID, token, msg.ID)
+	training.DefaultManager.SetCurrentMessageID(session, msg.ID)
+	training.DefaultManager.SetCurrentPromptText(session, prompt)
+	training.DefaultOverdue.BindMessage(user.UserID, user.UserID, overdueToken, msg.ID)
 	return true, nil
+}
+
+func buildOverdueKeyboard(reviewToken, overdueToken string) *models.InlineKeyboardMarkup {
+	keyboard := training.BuildKeyboard(reviewToken)
+	if keyboard == nil {
+		keyboard = &models.InlineKeyboardMarkup{}
+	}
+	keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, []models.InlineKeyboardButton{
+		{Text: "Snooze 1 day", CallbackData: training.OverdueCallbackPrefix + overdueToken + ":snooze1d"},
+		{Text: "Snooze 1 week", CallbackData: training.OverdueCallbackPrefix + overdueToken + ":snooze1w"},
+	})
+	return keyboard
 }

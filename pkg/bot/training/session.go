@@ -115,6 +115,13 @@ func (m *SessionManager) GetSession(chatID, userID int64) *Session {
 	return m.sessions[key]
 }
 
+func (m *SessionManager) End(chatID, userID int64) {
+	key := getSessionKey(chatID, userID)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.sessions, key)
+}
+
 func (m *SessionManager) Snapshot(chatID, userID int64) (SessionSnapshot, bool) {
 	key := getSessionKey(chatID, userID)
 	m.mu.Lock()
