@@ -162,24 +162,6 @@ func newTestUpdate(text string, userID int64) *models.Update {
 	}
 }
 
-func newTestDocumentUpdate(fileName, fileID string, userID int64) *models.Update {
-	return &models.Update{
-		Message: &models.Message{
-			From: &models.User{
-				ID: userID,
-			},
-			Chat: models.Chat{
-				ID:   userID,
-				Type: models.ChatTypePrivate,
-			},
-			Document: &models.Document{
-				FileID:   fileID,
-				FileName: fileName,
-			},
-		},
-	}
-}
-
 func newTestCallbackUpdate(data string, userID, chatID int64, messageID int) *models.Update {
 	return &models.Update{
 		CallbackQuery: &models.CallbackQuery{

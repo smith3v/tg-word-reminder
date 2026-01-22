@@ -151,10 +151,10 @@ func HandleReviewCallback(ctx context.Context, b *bot.Bot, update *models.Update
 
 	nextPair, nextToken := training.DefaultManager.Advance(msg.Chat.ID, update.CallbackQuery.From.ID)
 	if nextPair == nil {
-		if reviewedCount > 0 {
+		if reviewedCount > 1 {
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: msg.Chat.ID,
-				Text:   formatReviewCompletion(reviewedCount),
+				Text:   fmt.Sprintf("Well done reviewing %d cards.", reviewedCount),
 			})
 		}
 		return
@@ -202,18 +202,26 @@ func parseReviewCallback(data string) (string, training.Grade, bool) {
 }
 
 func formatReviewResolvedText(prompt string, grade training.Grade) string {
-	label := strings.Title(string(grade))
+	label := gradeLabel(grade)
 	if prompt == "" {
 		return label
 	}
 	return fmt.Sprintf("%s\n%s", prompt, label)
 }
 
-func formatReviewCompletion(count int) string {
-	if count == 1 {
-		return "Well done reviewing a card."
+func gradeLabel(grade training.Grade) string {
+	switch grade {
+	case training.GradeAgain:
+		return "Again"
+	case training.GradeHard:
+		return "Hard"
+	case training.GradeGood:
+		return "Good"
+	case training.GradeEasy:
+		return "Easy"
+	default:
+		return "Unknown"
 	}
-	return fmt.Sprintf("Well done reviewing %d cards.", count)
 }
 
 func markTrainingEngaged(userID int64, now time.Time) {
