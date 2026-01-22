@@ -10,6 +10,7 @@ import (
 type Config struct {
 	Database DatabaseConfig `json:"database"`
 	Telegram TelegramConfig `json:"telegram"`
+	Logging  LoggingConfig  `json:"logging"`
 }
 
 type DatabaseConfig struct {
@@ -23,6 +24,11 @@ type DatabaseConfig struct {
 
 type TelegramConfig struct {
 	Token string `json:"token"`
+}
+
+type LoggingConfig struct {
+	Level string `json:"level"`
+	File  string `json:"file"`
 }
 
 var AppConfig Config

@@ -9,5 +9,9 @@
     },
     "telegram": {
         "token": "YOUR_TELEGRAM_BOT_TOKEN"
+    },
+    "logging": {
+        "level": "info",
+        "file": "/app/logs/tg-word-reminder.log"
     }
 }

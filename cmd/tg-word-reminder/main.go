@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"log/slog"
 	"os"
 	"os/signal"
 
@@ -13,9 +12,8 @@ import (
 	"github.com/smith3v/tg-word-reminder/pkg/bot/reminders"
 	"github.com/smith3v/tg-word-reminder/pkg/config"
 	"github.com/smith3v/tg-word-reminder/pkg/db"
+	"github.com/smith3v/tg-word-reminder/pkg/logger"
 )
-
-var logger = slog.Default()
 
 type botSender struct {
 	b *bot.Bot
@@ -30,7 +28,17 @@ func (s botSender) SendMessage(ctx context.Context, chatID int64, text string) e
 }
 
 func main() {
-	config.LoadConfig("config.json")
+	if err := config.LoadConfig("config.json"); err != nil {
+		logger.Error("failed to load config", "error", err)
+		os.Exit(1)
+	}
+	if err := logger.Configure(logger.Options{
+		Level: config.AppConfig.Logging.Level,
+		File:  config.AppConfig.Logging.File,
+	}); err != nil {
+		logger.Error("failed to configure logger", "error", err)
+	}
+
 	if err := db.InitDB(config.AppConfig.Database); err != nil {
 		logger.Error("failed to initialize database", "error", err)
 		os.Exit(1)
