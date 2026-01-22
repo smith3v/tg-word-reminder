@@ -23,9 +23,14 @@ func TestParseCallbackData(t *testing.T) {
 			want:  Action{Screen: ScreenPairs, Op: OpNone, Value: 0},
 		},
 		{
-			name:  "frequency",
-			input: "s:freq",
-			want:  Action{Screen: ScreenFrequency, Op: OpNone, Value: 0},
+			name:  "slots",
+			input: "s:slots",
+			want:  Action{Screen: ScreenSlots, Op: OpNone, Value: 0},
+		},
+		{
+			name:  "timezone",
+			input: "s:tz",
+			want:  Action{Screen: ScreenTimezone, Op: OpNone, Value: 0},
 		},
 		{
 			name:  "close",
@@ -43,14 +48,14 @@ func TestParseCallbackData(t *testing.T) {
 			want:  Action{Screen: ScreenPairs, Op: OpDec, Value: -1},
 		},
 		{
-			name:  "frequency inc",
-			input: "s:freq:+1",
-			want:  Action{Screen: ScreenFrequency, Op: OpInc, Value: 1},
+			name:  "timezone inc",
+			input: "s:tz:+1",
+			want:  Action{Screen: ScreenTimezone, Op: OpInc, Value: 1},
 		},
 		{
-			name:  "frequency dec",
-			input: "s:freq:-1",
-			want:  Action{Screen: ScreenFrequency, Op: OpDec, Value: -1},
+			name:  "timezone dec",
+			input: "s:tz:-1",
+			want:  Action{Screen: ScreenTimezone, Op: OpDec, Value: -1},
 		},
 		{
 			name:  "pairs set",
@@ -58,9 +63,14 @@ func TestParseCallbackData(t *testing.T) {
 			want:  Action{Screen: ScreenPairs, Op: OpSet, Value: 5},
 		},
 		{
-			name:  "frequency set",
-			input: "s:freq:set:10",
-			want:  Action{Screen: ScreenFrequency, Op: OpSet, Value: 10},
+			name:  "timezone set",
+			input: "s:tz:set:-5",
+			want:  Action{Screen: ScreenTimezone, Op: OpSet, Value: -5},
+		},
+		{
+			name:  "slots toggle morning",
+			input: "s:slots:toggle:1",
+			want:  Action{Screen: ScreenSlots, Op: OpToggle, Value: 1},
 		},
 		{
 			name:    "empty",
@@ -98,6 +108,16 @@ func TestParseCallbackData(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:    "timezone set non-numeric",
+			input:   "s:tz:set:abc",
+			wantErr: true,
+		},
+		{
+			name:    "slots toggle invalid",
+			input:   "s:slots:toggle:4",
+			wantErr: true,
+		},
+		{
 			name:    "pairs set non-numeric",
 			input:   "s:pairs:set:abc",
 			wantErr: true,
@@ -109,7 +129,7 @@ func TestParseCallbackData(t *testing.T) {
 		},
 		{
 			name:    "extra parts",
-			input:   "s:freq:+1:extra",
+			input:   "s:tz:+1:extra",
 			wantErr: true,
 		},
 		{
@@ -155,9 +175,14 @@ func TestBuilderCallbacks(t *testing.T) {
 			want:  Action{Screen: ScreenPairs, Op: OpNone, Value: 0},
 		},
 		{
-			name:  "frequency",
-			build: BuildFrequencyCallback,
-			want:  Action{Screen: ScreenFrequency, Op: OpNone, Value: 0},
+			name:  "slots",
+			build: BuildSlotsCallback,
+			want:  Action{Screen: ScreenSlots, Op: OpNone, Value: 0},
+		},
+		{
+			name:  "timezone",
+			build: BuildTimezoneCallback,
+			want:  Action{Screen: ScreenTimezone, Op: OpNone, Value: 0},
 		},
 		{
 			name:  "close",
@@ -175,14 +200,14 @@ func TestBuilderCallbacks(t *testing.T) {
 			want:  Action{Screen: ScreenPairs, Op: OpDec, Value: -1},
 		},
 		{
-			name:  "frequency inc",
-			build: BuildFrequencyIncCallback,
-			want:  Action{Screen: ScreenFrequency, Op: OpInc, Value: 1},
+			name:  "timezone inc",
+			build: BuildTimezoneIncCallback,
+			want:  Action{Screen: ScreenTimezone, Op: OpInc, Value: 1},
 		},
 		{
-			name:  "frequency dec",
-			build: BuildFrequencyDecCallback,
-			want:  Action{Screen: ScreenFrequency, Op: OpDec, Value: -1},
+			name:  "timezone dec",
+			build: BuildTimezoneDecCallback,
+			want:  Action{Screen: ScreenTimezone, Op: OpDec, Value: -1},
 		},
 		{
 			name:  "pairs set",
@@ -190,9 +215,14 @@ func TestBuilderCallbacks(t *testing.T) {
 			want:  Action{Screen: ScreenPairs, Op: OpSet, Value: 5},
 		},
 		{
-			name:  "frequency set",
-			build: func() (string, error) { return BuildFrequencySetCallback(10) },
-			want:  Action{Screen: ScreenFrequency, Op: OpSet, Value: 10},
+			name:  "timezone set",
+			build: func() (string, error) { return BuildTimezoneSetCallback(-5) },
+			want:  Action{Screen: ScreenTimezone, Op: OpSet, Value: -5},
+		},
+		{
+			name:  "slots toggle",
+			build: func() (string, error) { return BuildSlotToggleCallback(SlotMorning) },
+			want:  Action{Screen: ScreenSlots, Op: OpToggle, Value: SlotMorning},
 		},
 	}
 
@@ -220,7 +250,7 @@ func TestBuildSetCallbackNegativeValue(t *testing.T) {
 	if _, err := BuildPairsSetCallback(-1); err == nil {
 		t.Fatalf("expected error for negative value")
 	}
-	if _, err := BuildFrequencySetCallback(-1); err == nil {
-		t.Fatalf("expected error for negative value")
+	if _, err := BuildTimezoneSetCallback(-5); err != nil {
+		t.Fatalf("expected timezone negative to be allowed")
 	}
 }

@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/smith3v/tg-word-reminder/pkg/db"
@@ -22,6 +24,17 @@ type wordPairInput struct {
 var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
 
 const maxDelimiterSampleRecords = 20
+
+var (
+	srsNewRankRand = rand.New(rand.NewSource(time.Now().UnixNano()))
+	srsNewRankMu   sync.Mutex
+)
+
+func randomSrsNewRank() int {
+	srsNewRankMu.Lock()
+	defer srsNewRankMu.Unlock()
+	return srsNewRankRand.Intn(db.SrsNewRankMax) + 1
+}
 
 func ParseVocabularyCSV(data []byte) ([]wordPairInput, int, error) {
 	data = bytes.TrimPrefix(data, utf8BOM)
@@ -165,6 +178,7 @@ func UpsertWordPairs(userID int64, pairs []wordPairInput) (int, int, error) {
 	}
 
 	err := db.DB.Transaction(func(tx *gorm.DB) error {
+		now := time.Now().UTC()
 		for _, pair := range pairs {
 			result := tx.Model(&db.WordPair{}).
 				Where("user_id = ? AND word1 = ?", userID, pair.Word1).
@@ -178,9 +192,15 @@ func UpsertWordPairs(userID int64, pairs []wordPairInput) (int, int, error) {
 			}
 
 			newPair := db.WordPair{
-				UserID: userID,
-				Word1:  pair.Word1,
-				Word2:  pair.Word2,
+				UserID:          userID,
+				Word1:           pair.Word1,
+				Word2:           pair.Word2,
+				SrsState:        "new",
+				SrsDueAt:        now,
+				SrsIntervalDays: 0,
+				SrsEase:         2.5,
+				SrsStep:         0,
+				SrsNewRank:      randomSrsNewRank(),
 			}
 			if err := tx.Create(&newPair).Error; err != nil {
 				return err

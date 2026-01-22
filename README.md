@@ -140,6 +140,7 @@ You can send a CSV file with word pairs to the bot to upload them. The first two
   - `/start:` initialize your account.
   - `/getpair`: get a random word pair.
   - `/game`: start a quiz session.
+  - `/review`: start a review session.
   - `/settings`: configure reminders and pair counts.
   - `/export`: download your vocabulary.
   - `/clear`: remove all uploaded word pairs.

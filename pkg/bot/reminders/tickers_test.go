@@ -13,6 +13,7 @@ import (
 	"time"
 
 	telegram "github.com/go-telegram/bot"
+	"github.com/smith3v/tg-word-reminder/pkg/bot/training"
 	"github.com/smith3v/tg-word-reminder/pkg/db"
 	"github.com/smith3v/tg-word-reminder/pkg/internal/testutil"
 	"github.com/smith3v/tg-word-reminder/pkg/logger"
@@ -95,6 +96,15 @@ func (m *mockClient) lastMessageText(t *testing.T) string {
 	return ""
 }
 
+func (m *mockClient) lastRequestBody(t *testing.T) string {
+	t.Helper()
+	if len(m.requests) == 0 {
+		t.Fatalf("expected at least one recorded request")
+	}
+	req := m.requests[len(m.requests)-1]
+	return string(req.body)
+}
+
 func newTestTelegramBot(t *testing.T, client *mockClient) *telegram.Bot {
 	t.Helper()
 	b, err := telegram.New("test-token",
@@ -107,136 +117,153 @@ func newTestTelegramBot(t *testing.T, client *mockClient) *telegram.Bot {
 	return b
 }
 
-func TestUpdateUserTickersAddsNewUser(t *testing.T) {
-	testutil.SetupTestDB(t)
-	logger.SetLogLevel(logger.ERROR)
-
-	user1 := db.UserSettings{UserID: 1, PairsToSend: 1, RemindersPerDay: 1}
-	user2 := db.UserSettings{UserID: 2, PairsToSend: 2, RemindersPerDay: 2}
-	if err := db.DB.Create(&[]db.UserSettings{user1, user2}).Error; err != nil {
-		t.Fatalf("failed to seed settings: %v", err)
+func TestLatestDueSlotSelectsMostRecent(t *testing.T) {
+	now := time.Date(2025, 1, 2, 14, 30, 0, 0, time.UTC)
+	user := db.UserSettings{
+		UserID:              1,
+		ReminderMorning:     true,
+		ReminderAfternoon:   true,
+		ReminderEvening:     true,
+		TimezoneOffsetHours: 0,
 	}
 
-	tickers := []struct {
-		ticker *time.Ticker
-		user   db.UserSettings
-	}{createUserTicker(user1)}
-	defer func() {
-		for _, t := range tickers {
-			t.ticker.Stop()
-		}
-	}()
-
-	updateUserTickers(&tickers)
-
-	if len(tickers) != 2 {
-		t.Fatalf("expected 2 tickers, got %d", len(tickers))
+	slot, ok := latestDueSlot(now, user)
+	if !ok {
+		t.Fatalf("expected due slot")
 	}
-	found := false
-	for _, t := range tickers {
-		if t.user.UserID == user2.UserID {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatalf("expected new user ticker to be added")
+	expected := time.Date(2025, 1, 2, 13, 0, 0, 0, time.UTC)
+	if !slot.Equal(expected) {
+		t.Fatalf("expected slot %v, got %v", expected, slot)
 	}
 }
 
-func TestUpdateUserTickersUpdatesSettings(t *testing.T) {
-	testutil.SetupTestDB(t)
-	logger.SetLogLevel(logger.ERROR)
-
-	user := db.UserSettings{UserID: 3, PairsToSend: 1, RemindersPerDay: 1}
-	if err := db.DB.Create(&user).Error; err != nil {
-		t.Fatalf("failed to seed settings: %v", err)
+func TestLatestDueSlotRespectsLastSent(t *testing.T) {
+	now := time.Date(2025, 1, 2, 21, 0, 0, 0, time.UTC)
+	lastSent := time.Date(2025, 1, 2, 20, 30, 0, 0, time.UTC)
+	user := db.UserSettings{
+		UserID:              1,
+		ReminderMorning:     true,
+		ReminderAfternoon:   true,
+		ReminderEvening:     true,
+		TimezoneOffsetHours: 0,
+		LastTrainingSentAt:  &lastSent,
 	}
 
-	tickers := []struct {
-		ticker *time.Ticker
-		user   db.UserSettings
-	}{createUserTicker(user)}
-	defer func() {
-		for _, t := range tickers {
-			t.ticker.Stop()
-		}
-	}()
-
-	var stored db.UserSettings
-	if err := db.DB.Where("user_id = ?", 3).First(&stored).Error; err != nil {
-		t.Fatalf("failed to load settings: %v", err)
-	}
-	stored.PairsToSend = 2
-	stored.RemindersPerDay = 4
-	if err := db.DB.Save(&stored).Error; err != nil {
-		t.Fatalf("failed to update settings: %v", err)
-	}
-
-	updateUserTickers(&tickers)
-
-	if tickers[0].user.PairsToSend != 2 || tickers[0].user.RemindersPerDay != 4 {
-		t.Fatalf("expected updated settings, got %+v", tickers[0].user)
+	_, ok := latestDueSlot(now, user)
+	if ok {
+		t.Fatalf("expected no due slot after evening send")
 	}
 }
 
-func TestSendRemindersNoPairsNoMessage(t *testing.T) {
+func TestComputeMissedCount(t *testing.T) {
+	lastSent := time.Date(2025, 1, 2, 9, 0, 0, 0, time.UTC)
+	lastEngaged := time.Date(2025, 1, 2, 10, 0, 0, 0, time.UTC)
+
+	user := db.UserSettings{
+		MissedTrainingSessions: 1,
+		LastTrainingSentAt:     &lastSent,
+	}
+	if got := computeMissedCount(user); got != 2 {
+		t.Fatalf("expected missed count 2, got %d", got)
+	}
+
+	user.LastTrainingEngagedAt = &lastEngaged
+	if got := computeMissedCount(user); got != 0 {
+		t.Fatalf("expected missed reset to 0, got %d", got)
+	}
+}
+
+func TestSendTrainingSessionNoPairs(t *testing.T) {
 	testutil.SetupTestDB(t)
 	logger.SetLogLevel(logger.ERROR)
+	training.ResetDefaultManager(time.Now)
 
 	client := newMockClient()
 	b := newTestTelegramBot(t, client)
-	user := db.UserSettings{UserID: 10, PairsToSend: 1, RemindersPerDay: 1}
+	user := db.UserSettings{UserID: 10, PairsToSend: 1}
 
-	sendReminders(context.Background(), b, user)
-
+	sent, err := sendTrainingSession(context.Background(), b, user, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sent {
+		t.Fatalf("expected no session to send")
+	}
 	if len(client.requests) != 0 {
 		t.Fatalf("expected no message to be sent")
 	}
 }
 
-func TestSendRemindersSendsMessage(t *testing.T) {
+func TestSendTrainingSessionSendsPrompt(t *testing.T) {
 	testutil.SetupTestDB(t)
 	logger.SetLogLevel(logger.ERROR)
+	training.ResetDefaultManager(time.Now)
 
 	if err := db.DB.Create(&db.WordPair{
-		UserID: 11,
-		Word1:  "Hola",
-		Word2:  "Adios",
+		UserID:   11,
+		Word1:    "Hola",
+		Word2:    "Adios",
+		SrsState: "new",
+		SrsDueAt: time.Now().Add(-time.Hour),
 	}).Error; err != nil {
 		t.Fatalf("failed to seed word pair: %v", err)
 	}
 
 	client := newMockClient()
 	b := newTestTelegramBot(t, client)
-	user := db.UserSettings{UserID: 11, PairsToSend: 1, RemindersPerDay: 1}
+	user := db.UserSettings{UserID: 11, PairsToSend: 1}
 
-	sendReminders(context.Background(), b, user)
+	sent, err := sendTrainingSession(context.Background(), b, user, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !sent {
+		t.Fatalf("expected session to be sent")
+	}
 
 	got := client.lastMessageText(t)
-	if !strings.Contains(got, "Hola") || !strings.Contains(got, "Adios") {
-		t.Fatalf("expected reminder to include both words, got %q", got)
+	if !strings.Contains(got, "||") {
+		t.Fatalf("expected spoiler in prompt, got %q", got)
 	}
 }
 
-func TestStartPeriodicMessagesStopsOnCanceledContext(t *testing.T) {
+func TestOverduePromptTriggers(t *testing.T) {
 	testutil.SetupTestDB(t)
 	logger.SetLogLevel(logger.ERROR)
+	training.ResetDefaultManager(time.Now)
+
+	now := time.Date(2025, 1, 2, 13, 30, 0, 0, time.UTC)
+	user := db.UserSettings{
+		UserID:              20,
+		PairsToSend:         1,
+		ReminderAfternoon:   true,
+		TimezoneOffsetHours: 0,
+	}
+	if err := db.DB.Create(&user).Error; err != nil {
+		t.Fatalf("failed to seed user settings: %v", err)
+	}
+	if err := db.DB.Create(&[]db.WordPair{
+		{UserID: 20, Word1: "a", Word2: "b", SrsState: "review", SrsDueAt: now.Add(-time.Hour)},
+		{UserID: 20, Word1: "c", Word2: "d", SrsState: "review", SrsDueAt: now.Add(-2 * time.Hour)},
+	}).Error; err != nil {
+		t.Fatalf("failed to seed pairs: %v", err)
+	}
 
 	client := newMockClient()
 	b := newTestTelegramBot(t, client)
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
 
-	done := make(chan struct{})
-	go func() {
-		StartPeriodicMessages(ctx, b)
-		close(done)
-	}()
+	handleUserReminder(context.Background(), b, user, now)
 
-	select {
-	case <-done:
-	case <-time.After(200 * time.Millisecond):
-		t.Fatalf("expected StartPeriodicMessages to exit on canceled context")
+	got := client.lastMessageText(t)
+	if !strings.Contains(got, "||") {
+		t.Fatalf("expected review prompt, got %q", got)
+	}
+
+	body := client.lastRequestBody(t)
+	if !strings.Contains(body, "snooze1d") || !strings.Contains(body, "snooze1w") {
+		t.Fatalf("expected snooze actions in keyboard, got %q", body)
+	}
+	if !strings.Contains(body, "t:grade") {
+		t.Fatalf("expected review grade buttons in keyboard, got %q", body)
 	}
 }
