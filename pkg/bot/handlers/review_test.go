@@ -240,3 +240,43 @@ func TestHandleOverdueCallbackCatchUp(t *testing.T) {
 		t.Fatalf("expected sendMessage for catch-up")
 	}
 }
+
+func TestHandleOverdueCallbackSnoozeEndsSession(t *testing.T) {
+	testutil.SetupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+	training.ResetDefaultManager(time.Now)
+
+	if err := db.DB.Create(&db.UserSettings{
+		UserID:      4002,
+		PairsToSend: 1,
+	}).Error; err != nil {
+		t.Fatalf("failed to seed settings: %v", err)
+	}
+	if err := db.DB.Create(&db.WordPair{
+		UserID:   4002,
+		Word1:    "hola",
+		Word2:    "adios",
+		SrsState: "new",
+		SrsDueAt: time.Now().Add(-time.Minute),
+	}).Error; err != nil {
+		t.Fatalf("failed to seed word pair: %v", err)
+	}
+
+	session := training.DefaultManager.StartOrRestart(4002, 4002, []db.WordPair{
+		{UserID: 4002, Word1: "hola", Word2: "adios", SrsState: "new"},
+	})
+	training.DefaultManager.SetCurrentMessageID(session, 22)
+
+	client := newMockClient()
+	b := newTestTelegramBot(t, client)
+
+	token := training.DefaultOverdue.Start(4002, 4002)
+	training.DefaultOverdue.BindMessage(4002, 4002, token, 22)
+	update := newTestCallbackUpdate("t:overdue:"+token+":snooze1d", 4002, 4002, 22)
+
+	HandleOverdueCallback(context.Background(), b, update)
+
+	if session := training.DefaultManager.GetSession(4002, 4002); session != nil {
+		t.Fatalf("expected session to end after snooze")
+	}
+}

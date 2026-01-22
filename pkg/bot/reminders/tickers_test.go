@@ -263,4 +263,7 @@ func TestOverduePromptTriggers(t *testing.T) {
 	if !strings.Contains(body, "snooze1d") || !strings.Contains(body, "snooze1w") {
 		t.Fatalf("expected snooze actions in keyboard, got %q", body)
 	}
+	if !strings.Contains(body, "t:grade") {
+		t.Fatalf("expected review grade buttons in keyboard, got %q", body)
+	}
 }
