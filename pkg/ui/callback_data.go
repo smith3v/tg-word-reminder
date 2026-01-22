@@ -54,10 +54,6 @@ func BuildPairsCallback() (string, error) {
 	return buildSimpleCallback(ScreenPairs)
 }
 
-func BuildFrequencyCallback() (string, error) {
-	return buildSimpleCallback(ScreenFrequency)
-}
-
 func BuildSlotsCallback() (string, error) {
 	return buildSimpleCallback(ScreenSlots)
 }
@@ -80,18 +76,6 @@ func BuildPairsDecCallback() (string, error) {
 
 func BuildPairsSetCallback(value int) (string, error) {
 	return buildSetCallback(ScreenPairs, value)
-}
-
-func BuildFrequencyIncCallback() (string, error) {
-	return buildAdjustCallback(ScreenFrequency, OpInc)
-}
-
-func BuildFrequencyDecCallback() (string, error) {
-	return buildAdjustCallback(ScreenFrequency, OpDec)
-}
-
-func BuildFrequencySetCallback(value int) (string, error) {
-	return buildSetCallback(ScreenFrequency, value)
 }
 
 const (

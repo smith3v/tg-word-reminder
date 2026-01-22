@@ -202,11 +202,26 @@ func parseReviewCallback(data string) (string, training.Grade, bool) {
 }
 
 func formatReviewResolvedText(prompt string, grade training.Grade) string {
-	label := strings.Title(string(grade))
+	label := gradeLabel(grade)
 	if prompt == "" {
 		return label
 	}
 	return fmt.Sprintf("%s\n%s", prompt, label)
+}
+
+func gradeLabel(grade training.Grade) string {
+	switch grade {
+	case training.GradeAgain:
+		return "Again"
+	case training.GradeHard:
+		return "Hard"
+	case training.GradeGood:
+		return "Good"
+	case training.GradeEasy:
+		return "Easy"
+	default:
+		return "Unknown"
+	}
 }
 
 func markTrainingEngaged(userID int64, now time.Time) {

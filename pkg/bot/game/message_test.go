@@ -11,7 +11,7 @@ func TestPrepareWordPairMessageProducesBothLayouts(t *testing.T) {
 		"_Adios_  ||Hola||\n": false,
 	}
 
-	rand.Seed(1)
+	messageRand = rand.New(rand.NewSource(1))
 	for i := 0; i < 10; i++ {
 		msg := PrepareWordPairMessage("Hola", "Adios")
 		if _, ok := expected[msg]; ok {
