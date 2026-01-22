@@ -12,13 +12,13 @@ import (
 const ReviewCallbackPrefix = "t:grade:"
 
 func BuildPrompt(pair db.WordPair) string {
-	shown := pair.Word1
-	expected := pair.Word2
+	shown := formatPromptSide(pair.Word1, false)
+	expected := formatPromptSide(pair.Word2, true)
 	if rand.Intn(2) == 0 {
-		shown = pair.Word2
-		expected = pair.Word1
+		shown = formatPromptSide(pair.Word2, true)
+		expected = formatPromptSide(pair.Word1, false)
 	}
-	return fmt.Sprintf("%s → ||%s||", bot.EscapeMarkdown(shown), bot.EscapeMarkdown(expected))
+	return fmt.Sprintf("%s → ||%s||", shown, expected)
 }
 
 func BuildKeyboard(token string) *models.InlineKeyboardMarkup {
@@ -32,4 +32,12 @@ func BuildKeyboard(token string) *models.InlineKeyboardMarkup {
 			},
 		},
 	}
+}
+
+func formatPromptSide(text string, italic bool) string {
+	escaped := bot.EscapeMarkdown(text)
+	if !italic {
+		return escaped
+	}
+	return fmt.Sprintf("_%s_", escaped)
 }

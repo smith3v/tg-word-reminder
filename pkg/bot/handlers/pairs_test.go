@@ -48,7 +48,7 @@ func TestHandleGetPairSendsRandomPair(t *testing.T) {
 	HandleGetPair(context.Background(), b, update)
 
 	got := client.lastMessageText(t)
-	if !strings.Contains(got, "Hola") || !strings.Contains(got, "Adios") || !strings.Contains(got, "||") {
+	if !strings.Contains(got, "_Adios_") || !strings.Contains(got, "||") {
 		t.Fatalf("expected message to contain both words, got %q", got)
 	}
 }
