@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/smith3v/tg-word-reminder/pkg/db"
 	"github.com/smith3v/tg-word-reminder/pkg/internal/testutil"
@@ -21,7 +22,7 @@ func TestHandleGetPairWithoutWords(t *testing.T) {
 	HandleGetPair(context.Background(), b, update)
 
 	got := client.lastMessageText(t)
-	if !strings.Contains(got, "You have no word pairs saved") {
+	if !strings.Contains(got, "Nothing to review") {
 		t.Fatalf("expected no data message, got %q", got)
 	}
 }
@@ -31,9 +32,11 @@ func TestHandleGetPairSendsRandomPair(t *testing.T) {
 	logger.SetLogLevel(logger.ERROR)
 
 	if err := db.DB.Create(&db.WordPair{
-		UserID: 505,
-		Word1:  "Hola",
-		Word2:  "Adios",
+		UserID:   505,
+		Word1:    "Hola",
+		Word2:    "Adios",
+		SrsState: "new",
+		SrsDueAt: time.Now().Add(-time.Minute),
 	}).Error; err != nil {
 		t.Fatalf("failed to seed word pair: %v", err)
 	}
@@ -45,7 +48,7 @@ func TestHandleGetPairSendsRandomPair(t *testing.T) {
 	HandleGetPair(context.Background(), b, update)
 
 	got := client.lastMessageText(t)
-	if !strings.Contains(got, "Hola") || !strings.Contains(got, "Adios") {
+	if !strings.Contains(got, "Hola") || !strings.Contains(got, "Adios") || !strings.Contains(got, "||") {
 		t.Fatalf("expected message to contain both words, got %q", got)
 	}
 }

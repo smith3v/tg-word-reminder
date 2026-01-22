@@ -19,6 +19,11 @@
 - If there are no due or new cards, reply with "Nothing to review right now."
 - When the session finishes, send a short completion summary (e.g. "Well done reviewing N cards.").
 
+### On-demand: `/getpair`
+- Behaves like a one-card review session.
+- Uses the same selection order and grading flow as `/review`.
+- If there are no due or new cards, reply with "Nothing to review right now."
+
 ### Auto reminders
 - Replace existing random reminders with SRS sessions.
 - Sessions run at fixed local times (08:00, 13:00, 20:00) based on user timezone.
@@ -89,6 +94,7 @@ This capacity is used for overdue decisions only. `/review` ignores the capacity
 
 ### Session size
 - `/review`: `cards_per_session` from user settings.
+- `/getpair`: 1 card.
 - Auto reminders: `cards_per_session` (default 5).
 
 ### Selection order

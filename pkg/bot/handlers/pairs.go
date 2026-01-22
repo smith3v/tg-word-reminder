@@ -2,10 +2,11 @@ package handlers
 
 import (
 	"context"
+	"time"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"github.com/smith3v/tg-word-reminder/pkg/bot/game"
+	"github.com/smith3v/tg-word-reminder/pkg/bot/training"
 	"github.com/smith3v/tg-word-reminder/pkg/db"
 	"github.com/smith3v/tg-word-reminder/pkg/logger"
 )
@@ -29,32 +30,47 @@ func HandleGetPair(ctx context.Context, b *bot.Bot, update *models.Update) {
 		return
 	}
 
-	var wordPair db.WordPair
-	if err := db.DB.Where("user_id = ?", update.Message.From.ID).Order("RANDOM()").Limit(1).Find(&wordPair).Error; err != nil {
-		logger.Error("failed to fetch random word pair for user", "user_id", update.Message.From.ID, "error", err)
+	now := time.Now().UTC()
+	pairs, err := training.SelectSessionPairs(update.Message.From.ID, 1, now)
+	if err != nil {
+		logger.Error("failed to load getpair pairs", "user_id", update.Message.From.ID, "error", err)
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
-			Text:   "Failed to retrieve a word pair. Please try again later.",
+			Text:   "Failed to start review. Please try again later.",
 		})
 		return
 	}
 
-	if (wordPair == db.WordPair{}) {
+	if len(pairs) == 0 {
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
-			Text:   "You have no word pairs saved. Please upload some word pairs first.",
+			Text:   "Nothing to review right now.",
 		})
 		return
 	}
 
-	message := game.PrepareWordPairMessage(wordPair.Word1, wordPair.Word2)
+	session := training.DefaultManager.StartOrRestart(update.Message.Chat.ID, update.Message.From.ID, pairs)
+	card := session.CurrentPair()
+	if card == nil {
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "Nothing to review right now.",
+		})
+		return
+	}
 
-	_, err := b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID:    update.Message.Chat.ID,
-		Text:      message,
-		ParseMode: models.ParseModeMarkdown,
+	prompt := training.BuildPrompt(*card)
+	msg, err := b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:      update.Message.Chat.ID,
+		Text:        prompt,
+		ParseMode:   models.ParseModeMarkdown,
+		ReplyMarkup: training.BuildKeyboard(session.CurrentToken()),
 	})
 	if err != nil {
-		logger.Error("failed to send random word pair message", "user_id", update.Message.From.ID, "error", err)
+		logger.Error("failed to send getpair prompt", "user_id", update.Message.From.ID, "error", err)
+		return
 	}
+	training.DefaultManager.SetCurrentMessageID(session, msg.ID)
+	training.DefaultManager.SetCurrentPromptText(session, prompt)
+	training.DefaultManager.Touch(update.Message.Chat.ID, update.Message.From.ID)
 }
