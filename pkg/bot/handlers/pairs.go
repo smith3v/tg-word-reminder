@@ -17,6 +17,10 @@ func HandleClear(ctx context.Context, b *bot.Bot, update *models.Update) {
 		return
 	}
 
+	if tryHandleFeedbackCapture(ctx, b, update) {
+		return
+	}
+
 	db.DB.Where("user_id = ?", update.Message.From.ID).Delete(&db.WordPair{})
 	b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: update.Message.Chat.ID,
@@ -27,6 +31,10 @@ func HandleClear(ctx context.Context, b *bot.Bot, update *models.Update) {
 func HandleGetPair(ctx context.Context, b *bot.Bot, update *models.Update) {
 	if update == nil || update.Message == nil || update.Message.From == nil || update.Message.Chat.ID == 0 {
 		logger.Error("invalid update in handleGetPair")
+		return
+	}
+
+	if tryHandleFeedbackCapture(ctx, b, update) {
 		return
 	}
 

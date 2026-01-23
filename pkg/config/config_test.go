@@ -25,6 +25,11 @@ func TestLoadConfigSuccess(t *testing.T) {
 		},
 		"telegram": {
 			"token": "test-token"
+		},
+		"feedback": {
+			"enabled": true,
+			"admin_ids": [123456789, 987654321],
+			"timeout_minutes": 5
 		}
 	}`
 
@@ -44,6 +49,15 @@ func TestLoadConfigSuccess(t *testing.T) {
 	}
 	if AppConfig.Telegram.Token != "test-token" {
 		t.Errorf("expected token to be test-token, got %q", AppConfig.Telegram.Token)
+	}
+	if !AppConfig.Feedback.Enabled {
+		t.Errorf("expected feedback enabled to be true")
+	}
+	if len(AppConfig.Feedback.AdminIDs) != 2 {
+		t.Errorf("expected 2 admin IDs, got %d", len(AppConfig.Feedback.AdminIDs))
+	}
+	if AppConfig.Feedback.TimeoutMinutes != 5 {
+		t.Errorf("expected feedback timeout minutes to be 5, got %d", AppConfig.Feedback.TimeoutMinutes)
 	}
 }
 

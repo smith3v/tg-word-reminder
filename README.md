@@ -144,6 +144,7 @@ You can send a CSV file with word pairs to the bot to upload them. The first two
   - `/settings`: configure reminders and pair counts.
   - `/export`: download your vocabulary.
   - `/clear`: remove all uploaded word pairs.
+  - `/feedback`: send feedback to the admins (private chat only).
 
 ## Database Setup
 
@@ -164,6 +165,18 @@ Optional `config.json` logging settings:
 - `file`: when set, logs are written to both stdout and the file path.
 
 `compose.yml` mounts `./logs` to `/app/logs` so file logs persist across container restarts.
+
+## Feedback
+
+Configure feedback delivery in `config.json` with admin IDs:
+```json
+"feedback": {
+  "enabled": true,
+  "admin_ids": [123456789],
+  "timeout_minutes": 5
+}
+```
+Admin IDs must be numeric Telegram user IDs. Use @Get_myidrobot (or similar) to find your numeric ID.
 
 ## Contributing
 

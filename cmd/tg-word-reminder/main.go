@@ -7,6 +7,7 @@ import (
 	"os/signal"
 
 	"github.com/go-telegram/bot"
+	"github.com/smith3v/tg-word-reminder/pkg/bot/feedback"
 	"github.com/smith3v/tg-word-reminder/pkg/bot/game"
 	"github.com/smith3v/tg-word-reminder/pkg/bot/handlers"
 	"github.com/smith3v/tg-word-reminder/pkg/bot/reminders"
@@ -64,6 +65,7 @@ func main() {
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/export", bot.MatchTypeExact, handlers.HandleExport)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/review", bot.MatchTypeExact, handlers.HandleReview)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/game", bot.MatchTypeExact, handlers.HandleGameStart)
+	b.RegisterHandler(bot.HandlerTypeMessageText, "/feedback", bot.MatchTypeExact, handlers.HandleFeedback)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "s:", bot.MatchTypePrefix, handlers.HandleSettingsCallback)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "g:r:", bot.MatchTypePrefix, handlers.HandleGameCallback)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "t:grade:", bot.MatchTypePrefix, handlers.HandleReviewCallback)
@@ -72,6 +74,7 @@ func main() {
 	go reminders.StartPeriodicMessages(ctx, b)
 	go game.StartGameSweeper(ctx, botSender{b: b})
 	go training.StartTrainingSweeper(ctx)
+	go feedback.DefaultManager.StartSweeper(ctx)
 
 	logger.Info("Starting bot...")
 	b.Start(ctx)

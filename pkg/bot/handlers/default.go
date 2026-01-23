@@ -21,6 +21,10 @@ func DefaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 		return
 	}
 
+	if tryHandleFeedbackCapture(ctx, b, update) {
+		return
+	}
+
 	// Check if the message contains a document (file)
 	if update.Message.Document == nil {
 		if update.Message.Text != "" {
@@ -36,6 +40,7 @@ func DefaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 				"\\* /game: start a quiz session\\.\n" +
 				"\\* /review: start a review session\\.\n" +
 				"\\* /settings: configure reminders and pair counts\\.\n" +
+				"\\* /feedback: send feedback to the admins\\.\n" +
 				"\\* /export: download your vocabulary\\.\n" +
 				"\\* /clear: remove all uploaded word pairs\\.\n\n" +
 				"If you attach a CSV file here\\, I\\'ll upload the word pairs to your account\\. Please refer to [the example](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/example.csv) for a file format\\, or to [Dutch\\-English vocabulary example](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/dutch-english.csv)\\.",

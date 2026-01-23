@@ -11,6 +11,7 @@ type Config struct {
 	Database DatabaseConfig `json:"database"`
 	Telegram TelegramConfig `json:"telegram"`
 	Logging  LoggingConfig  `json:"logging"`
+	Feedback FeedbackConfig `json:"feedback"`
 }
 
 type DatabaseConfig struct {
@@ -29,6 +30,12 @@ type TelegramConfig struct {
 type LoggingConfig struct {
 	Level string `json:"level"`
 	File  string `json:"file"`
+}
+
+type FeedbackConfig struct {
+	Enabled        bool    `json:"enabled"`
+	AdminIDs       []int64 `json:"admin_ids"`
+	TimeoutMinutes int     `json:"timeout_minutes"`
 }
 
 var AppConfig Config

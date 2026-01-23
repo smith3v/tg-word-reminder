@@ -13,5 +13,10 @@
     "logging": {
         "level": "info",
         "file": "/app/logs/tg-word-reminder.log"
+    },
+    "feedback": {
+        "enabled": true,
+        "admin_ids": [123456789],
+        "timeout_minutes": 5
     }
 }
