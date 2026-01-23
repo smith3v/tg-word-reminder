@@ -18,6 +18,11 @@ func HandleReview(ctx context.Context, b *bot.Bot, update *models.Update) {
 		logger.Error("invalid update in HandleReview")
 		return
 	}
+
+	if tryHandleFeedbackCapture(ctx, b, update) {
+		return
+	}
+
 	if update.Message.Chat.Type != models.ChatTypePrivate {
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,

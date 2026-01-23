@@ -1,7 +1,11 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
+	"io"
+	"mime"
+	"mime/multipart"
 	"strings"
 	"testing"
 	"time"
@@ -100,4 +104,102 @@ func TestHandleFeedbackMissingAdmins(t *testing.T) {
 	if ok := feedback.DefaultManager.Consume(303, 303, time.Now().UTC()); ok {
 		t.Fatalf("expected no pending feedback when admins are missing")
 	}
+}
+
+func TestTryHandleFeedbackCapture(t *testing.T) {
+	logger.SetLogLevel(logger.ERROR)
+
+	original := config.AppConfig
+	t.Cleanup(func() { config.AppConfig = original })
+	config.AppConfig.Feedback = config.FeedbackConfig{
+		Enabled:        true,
+		AdminIDs:       []int64{901, 902},
+		TimeoutMinutes: 5,
+	}
+
+	feedback.ResetDefaultManager(nil)
+	start := time.Now().UTC()
+	feedback.DefaultManager.Start(401, 401, start, 5*time.Minute)
+
+	client := newMockClient()
+	b := newTestTelegramBot(t, client)
+	update := newTestUpdate("I like this", 401)
+	update.Message.Chat.Type = models.ChatTypePrivate
+	update.Message.ID = 55
+
+	if handled := tryHandleFeedbackCapture(context.Background(), b, update); !handled {
+		t.Fatalf("expected feedback capture to handle message")
+	}
+
+	if ok := feedback.DefaultManager.Consume(401, 401, time.Now().UTC()); ok {
+		t.Fatalf("expected pending feedback to be cleared")
+	}
+
+	sendCount := 0
+	forwardCount := 0
+	summaryCount := 0
+	confirmCount := 0
+	for _, req := range client.requests {
+		if strings.Contains(req.path, "sendMessage") {
+			sendCount++
+			text := messageTextFromRequest(t, req)
+			if strings.Contains(text, "Feedback received") {
+				summaryCount++
+				if !strings.Contains(text, "> I like this") {
+					t.Fatalf("expected summary to quote feedback, got %q", text)
+				}
+				if !strings.Contains(text, "ID 401") {
+					t.Fatalf("expected summary to include user ID, got %q", text)
+				}
+			} else if strings.Contains(text, "Thanks for your feedback!") {
+				confirmCount++
+			}
+		}
+		if strings.Contains(req.path, "forwardMessage") {
+			forwardCount++
+		}
+	}
+	if sendCount != 3 {
+		t.Fatalf("expected 3 sendMessage requests, got %d", sendCount)
+	}
+	if forwardCount != 2 {
+		t.Fatalf("expected 2 forwardMessage requests, got %d", forwardCount)
+	}
+	if summaryCount != 2 {
+		t.Fatalf("expected 2 summary messages, got %d", summaryCount)
+	}
+	if confirmCount != 1 {
+		t.Fatalf("expected 1 confirmation message, got %d", confirmCount)
+	}
+}
+
+func messageTextFromRequest(t *testing.T, req recordedRequest) string {
+	t.Helper()
+	mediaType, params, err := mime.ParseMediaType(req.contentType)
+	if err != nil {
+		t.Fatalf("failed to parse media type: %v", err)
+	}
+	if !strings.HasPrefix(mediaType, "multipart/") {
+		t.Fatalf("unexpected media type: %s", mediaType)
+	}
+
+	reader := multipart.NewReader(bytes.NewReader(req.body), params["boundary"])
+	for {
+		part, err := reader.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("failed to read multipart part: %v", err)
+		}
+		if part.FormName() == "text" {
+			data, err := io.ReadAll(part)
+			if err != nil {
+				t.Fatalf("failed to read text part: %v", err)
+			}
+			return string(data)
+		}
+	}
+	t.Fatalf("text field not found in request")
+	return ""
 }

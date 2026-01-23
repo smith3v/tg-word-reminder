@@ -16,6 +16,10 @@ func HandleStart(ctx context.Context, b *bot.Bot, update *models.Update) {
 		return
 	}
 
+	if tryHandleFeedbackCapture(ctx, b, update) {
+		return
+	}
+
 	// Check if user settings already exist
 	var settings db.UserSettings
 	if err := db.DB.Where("user_id = ?", update.Message.From.ID).First(&settings).Error; err != nil {

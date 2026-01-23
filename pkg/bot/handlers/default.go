@@ -21,6 +21,10 @@ func DefaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 		return
 	}
 
+	if tryHandleFeedbackCapture(ctx, b, update) {
+		return
+	}
+
 	// Check if the message contains a document (file)
 	if update.Message.Document == nil {
 		if update.Message.Text != "" {
