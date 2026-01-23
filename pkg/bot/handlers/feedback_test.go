@@ -145,8 +145,8 @@ func TestTryHandleFeedbackCapture(t *testing.T) {
 			text := messageTextFromRequest(t, req)
 			if strings.Contains(text, "Feedback received") {
 				summaryCount++
-				if !strings.Contains(text, "> I like this") {
-					t.Fatalf("expected summary to quote feedback, got %q", text)
+				if strings.Contains(text, "I like this") {
+					t.Fatalf("expected summary to omit feedback text, got %q", text)
 				}
 				if !strings.Contains(text, "ID 401") {
 					t.Fatalf("expected summary to include user ID, got %q", text)

@@ -91,7 +91,7 @@ func tryHandleFeedbackCapture(ctx context.Context, b *bot.Bot, update *models.Up
 	if !cfg.Enabled || len(cfg.AdminIDs) == 0 {
 		logger.Error("feedback is not configured", "user_id", user.ID)
 	} else {
-		summary := formatFeedbackSummary(user, text, hasMedia, now)
+		summary := formatFeedbackSummary(user, hasMedia, mediaType, now)
 		for _, adminID := range cfg.AdminIDs {
 			if adminID == 0 {
 				continue
@@ -122,16 +122,22 @@ func tryHandleFeedbackCapture(ctx context.Context, b *bot.Bot, update *models.Up
 	return true
 }
 
-func formatFeedbackSummary(user *models.User, text string, hasMedia bool, now time.Time) string {
+func formatFeedbackSummary(user *models.User, hasMedia bool, mediaType string, now time.Time) string {
 	name := formatDisplayName(user)
 	meta := fmt.Sprintf("From: %s (ID %d)", name, user.ID)
-
-	body := quoteLines(text, hasMedia)
+	mediaLine := "Media: none"
+	if hasMedia {
+		if strings.TrimSpace(mediaType) == "" {
+			mediaLine = "Media: attached"
+		} else {
+			mediaLine = fmt.Sprintf("Media: %s", mediaType)
+		}
+	}
 	return fmt.Sprintf(
 		"Feedback received\n%s\nAt: %s UTC\n%s",
 		meta,
 		now.Format("2006-01-02 15:04"),
-		body,
+		mediaLine,
 	)
 }
 
@@ -150,21 +156,6 @@ func formatDisplayName(user *models.User) string {
 		return user.Username
 	}
 	return fmt.Sprintf("User %d", user.ID)
-}
-
-func quoteLines(text string, hasMedia bool) string {
-	if strings.TrimSpace(text) == "" {
-		if hasMedia {
-			return "> (no text; attachment only)"
-		}
-		return "> (no text)"
-	}
-	lines := strings.Split(text, "\n")
-	quoted := make([]string, 0, len(lines))
-	for _, line := range lines {
-		quoted = append(quoted, "> "+line)
-	}
-	return strings.Join(quoted, "\n")
 }
 
 func detectMedia(msg *models.Message) (bool, string) {
