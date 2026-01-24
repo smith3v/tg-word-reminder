@@ -58,7 +58,7 @@ func HandleStart(ctx context.Context, b *bot.Bot, update *models.Update) {
 		Text: "Welcome\\!\n\n" +
 			"This bot helps you practice word pairs with short quizzes and reminders\\.\n" +
 			"Start by uploading your vocabulary as a CSV file \\(comma\\, tab\\, or semicolon separated\\)\\.\n" +
-			"See the [example format](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/example.csv) or the [Dutch\\-English sample](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/dutch-english.csv)\\.\n\n" +
+			"See the [example format](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/vocabularies/example.csv) or the [Dutch\\-English sample](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/vocabularies/dutch-english.csv)\\.\n\n" +
 			"Use /settings to adjust reminder frequency and pair count\\, /getpair for a quick random pair\\, /export to download your vocabulary\\, or /game to start a quiz session\\.",
 		ParseMode: models.ParseModeMarkdown,
 	})
