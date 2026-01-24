@@ -134,7 +134,7 @@ go test ./...
 
 ## Usage
 
-You can send a CSV file with word pairs to the bot to upload them. The first two columns are used as `word1` and `word2` (comma, tab, or semicolon separated). Please refer to the example file `example.csv` for the correct format.
+You can send a CSV file with word pairs to the bot to upload them. The first two columns are used as `word1` and `word2` (comma, tab, or semicolon separated). Please refer to the example file `vocabularies/example.csv` for the correct format.
 
 - **Commands:**
   - `/start:` initialize your account.
