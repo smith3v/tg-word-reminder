@@ -42,6 +42,8 @@ func SelectSessionPairs(userID int64, size int, now time.Time) ([]db.WordPair, e
 	var due []db.WordPair
 	if err := db.DB.
 		Where("user_id = ? AND srs_due_at <= ?", userID, now).
+		Order("CASE WHEN srs_state = 'new' THEN 1 ELSE 0 END ASC").
+		Order("CASE WHEN srs_state = 'new' THEN srs_new_rank ELSE 0 END ASC").
 		Order("srs_due_at ASC, id ASC").
 		Limit(size).
 		Find(&due).Error; err != nil {
