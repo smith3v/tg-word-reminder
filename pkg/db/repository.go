@@ -21,7 +21,11 @@ func InitDB(cfg config.DatabaseConfig) error {
 		" dbname=" + cfg.DBName +
 		" port=" + strconv.Itoa(cfg.Port) +
 		" sslmode=" + cfg.SSLMode
-	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: newGormLogger()})
+	gormLogger, gormErr := newGormLogger(config.AppConfig.Logging.GormLevel)
+	if gormErr != nil {
+		logger.Error("invalid gorm log level", "value", config.AppConfig.Logging.GormLevel, "error", gormErr)
+	}
+	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: gormLogger})
 	if err != nil {
 		logger.Error("failed to connect to database", "error", err)
 		return err

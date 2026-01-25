@@ -158,10 +158,12 @@ Optional `config.json` logging settings:
 ```json
 "logging": {
   "level": "info",
+  "gorm_level": "warn",
   "file": "/app/logs/tg-word-reminder.log"
 }
 ```
 - `level`: `debug`, `info`, or `error` (defaults to `info`).
+- `gorm_level`: `silent`, `error`, `warn`, or `info` (defaults to `warn`).
 - `file`: when set, logs are written to both stdout and the file path.
 
 `compose.yml` mounts `./logs` to `/app/logs` so file logs persist across container restarts.

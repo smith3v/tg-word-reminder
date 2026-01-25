@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/smith3v/tg-word-reminder/pkg/logger"
+	gormlogger "gorm.io/gorm/logger"
 )
 
 func TestGormLoggerTraceLevels(t *testing.T) {
@@ -22,7 +23,11 @@ func TestGormLoggerTraceLevels(t *testing.T) {
 	var buf bytes.Buffer
 	logger.Logger = slog.New(slog.NewTextHandler(&buf, nil))
 
-	l := newGormLogger().(*gormSlogLogger)
+	lg, err := newGormLogger("info")
+	if err != nil {
+		t.Fatalf("failed to create gorm logger: %v", err)
+	}
+	l := lg.(*gormSlogLogger)
 	ctx := context.Background()
 
 	logger.SetLogLevel(logger.INFO)
@@ -50,5 +55,27 @@ func TestGormLoggerTraceLevels(t *testing.T) {
 	}, errors.New("boom"))
 	if !strings.Contains(buf.String(), "gorm query error") {
 		t.Fatalf("expected error log, got: %s", buf.String())
+	}
+}
+
+func TestNewGormLoggerDefaultsToWarn(t *testing.T) {
+	lg, err := newGormLogger("")
+	if err != nil {
+		t.Fatalf("unexpected error for default gorm logger: %v", err)
+	}
+	l := lg.(*gormSlogLogger)
+	if l.logLevel != gormlogger.Warn {
+		t.Fatalf("expected default gorm log level warn, got: %v", l.logLevel)
+	}
+}
+
+func TestNewGormLoggerInvalidLevelDefaultsToWarn(t *testing.T) {
+	lg, err := newGormLogger("nope")
+	if err == nil {
+		t.Fatalf("expected error for invalid gorm level")
+	}
+	l := lg.(*gormSlogLogger)
+	if l.logLevel != gormlogger.Warn {
+		t.Fatalf("expected default gorm log level warn for invalid input, got: %v", l.logLevel)
 	}
 }

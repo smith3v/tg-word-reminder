@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/smith3v/tg-word-reminder/pkg/logger"
@@ -12,7 +13,10 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 )
 
-const defaultSlowThreshold = 200 * time.Millisecond
+const (
+	defaultSlowThreshold = 200 * time.Millisecond
+	defaultGormLogLevel  = gormlogger.Warn
+)
 
 type gormSlogLogger struct {
 	slowThreshold             time.Duration
@@ -20,12 +24,17 @@ type gormSlogLogger struct {
 	logLevel                  gormlogger.LogLevel
 }
 
-func newGormLogger() gormlogger.Interface {
+func newGormLogger(levelValue string) (gormlogger.Interface, error) {
+	level := defaultGormLogLevel
+	var levelErr error
+	if strings.TrimSpace(levelValue) != "" {
+		level, levelErr = parseGormLogLevel(levelValue)
+	}
 	return &gormSlogLogger{
 		slowThreshold:             defaultSlowThreshold,
 		ignoreRecordNotFoundError: false,
-		logLevel:                  gormlogger.Info,
-	}
+		logLevel:                  level,
+	}, levelErr
 }
 
 func (l *gormSlogLogger) LogMode(level gormlogger.LogLevel) gormlogger.Interface {
@@ -130,5 +139,20 @@ func (l *gormSlogLogger) enabled(level gormlogger.LogLevel) bool {
 		return logger.Enabled(logger.ERROR)
 	default:
 		return false
+	}
+}
+
+func parseGormLogLevel(value string) (gormlogger.LogLevel, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "silent":
+		return gormlogger.Silent, nil
+	case "error":
+		return gormlogger.Error, nil
+	case "warn":
+		return gormlogger.Warn, nil
+	case "info":
+		return gormlogger.Info, nil
+	default:
+		return defaultGormLogLevel, fmt.Errorf("invalid gorm log level %q", value)
 	}
 }
