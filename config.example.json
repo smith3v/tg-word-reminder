@@ -12,6 +12,7 @@
     },
     "logging": {
         "level": "info",
+        "gorm_level": "warn",
         "file": "/app/logs/tg-word-reminder.log"
     },
     "feedback": {

@@ -28,8 +28,9 @@ type TelegramConfig struct {
 }
 
 type LoggingConfig struct {
-	Level string `json:"level"`
-	File  string `json:"file"`
+	Level     string `json:"level"`
+	GormLevel string `json:"gorm_level"`
+	File      string `json:"file"`
 }
 
 type FeedbackConfig struct {

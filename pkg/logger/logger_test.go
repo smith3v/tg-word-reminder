@@ -94,3 +94,27 @@ func TestConfigureInvalidLevelDefaultsToInfo(t *testing.T) {
 		t.Fatalf("info message was not logged:\n%s", output)
 	}
 }
+
+func TestEnabledReportsLevel(t *testing.T) {
+	originalLogger := Logger
+	originalLevel := currentLevel
+	t.Cleanup(func() {
+		Logger = originalLogger
+		SetLogLevel(originalLevel)
+	})
+
+	SetLogLevel(DEBUG)
+	if !Enabled(DEBUG) || !Enabled(INFO) || !Enabled(ERROR) {
+		t.Fatalf("expected DEBUG to allow all levels")
+	}
+
+	SetLogLevel(INFO)
+	if Enabled(DEBUG) || !Enabled(INFO) || !Enabled(ERROR) {
+		t.Fatalf("expected INFO to allow info and error only")
+	}
+
+	SetLogLevel(ERROR)
+	if Enabled(DEBUG) || Enabled(INFO) || !Enabled(ERROR) {
+		t.Fatalf("expected ERROR to allow error only")
+	}
+}

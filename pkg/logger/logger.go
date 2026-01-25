@@ -68,6 +68,10 @@ func SetLogLevel(level LogLevel) {
 	currentLevel = level
 }
 
+func Enabled(level LogLevel) bool {
+	return currentLevel <= level
+}
+
 func ParseLogLevel(value string) (LogLevel, error) {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "debug":
