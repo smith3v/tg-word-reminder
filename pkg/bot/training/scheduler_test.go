@@ -143,3 +143,53 @@ func TestSelectSessionPairs(t *testing.T) {
 		t.Fatalf("expected new pair to fill, got %+v", got)
 	}
 }
+
+func TestSelectSessionPairsOrdersDueNewByRank(t *testing.T) {
+	testutil.SetupTestDB(t)
+
+	now := time.Date(2025, 1, 2, 10, 0, 0, 0, time.UTC)
+	due := db.WordPair{
+		UserID:   701,
+		Word1:    "review",
+		Word2:    "pair",
+		SrsState: string(StateReview),
+		SrsDueAt: now.Add(-2 * time.Hour),
+	}
+	newLow := db.WordPair{
+		UserID:     701,
+		Word1:      "new-low",
+		Word2:      "pair",
+		SrsState:   string(StateNew),
+		SrsDueAt:   now.Add(-1 * time.Hour),
+		SrsNewRank: 10,
+	}
+	newHigh := db.WordPair{
+		UserID:     701,
+		Word1:      "new-high",
+		Word2:      "pair",
+		SrsState:   string(StateNew),
+		SrsDueAt:   now.Add(-1 * time.Hour),
+		SrsNewRank: 90,
+	}
+
+	if err := db.DB.Create(&due).Error; err != nil {
+		t.Fatalf("failed to create due: %v", err)
+	}
+	if err := db.DB.Create(&newHigh).Error; err != nil {
+		t.Fatalf("failed to create newHigh: %v", err)
+	}
+	if err := db.DB.Create(&newLow).Error; err != nil {
+		t.Fatalf("failed to create newLow: %v", err)
+	}
+
+	got, err := SelectSessionPairs(701, 3, now)
+	if err != nil {
+		t.Fatalf("select failed: %v", err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("expected 3 pairs, got %+v", got)
+	}
+	if got[0].Word1 != "review" || got[1].Word1 != "new-low" || got[2].Word1 != "new-high" {
+		t.Fatalf("expected due review then new by rank, got %+v", got)
+	}
+}
