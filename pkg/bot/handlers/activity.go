@@ -90,7 +90,7 @@ func ActivityMiddleware(tracker *ActivityTracker) bot.Middleware {
 				if update.Message != nil && update.Message.From != nil {
 					tracker.Touch(update.Message.From.ID)
 				}
-				if update.CallbackQuery != nil && update.CallbackQuery.From != nil {
+				if update.CallbackQuery != nil && update.CallbackQuery.From.ID != 0 {
 					tracker.Touch(update.CallbackQuery.From.ID)
 				}
 			}
