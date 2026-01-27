@@ -49,8 +49,10 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
+	tracker := handlers.NewActivityTracker()
 	opts := []bot.Option{
 		bot.WithDefaultHandler(handlers.DefaultHandler),
+		bot.WithMiddlewares(handlers.ActivityMiddleware(tracker)),
 	}
 	b, err := bot.New(config.AppConfig.Telegram.Token, opts...)
 	if err != nil {
@@ -75,6 +77,7 @@ func main() {
 	go game.StartGameSweeper(ctx, botSender{b: b})
 	go training.StartTrainingSweeper(ctx)
 	go feedback.DefaultManager.StartSweeper(ctx)
+	go handlers.StartActivityFlusher(ctx, tracker)
 
 	logger.Info("Starting bot...")
 	b.Start(ctx)
