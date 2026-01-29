@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/smith3v/tg-word-reminder/pkg/bot/training"
 	"github.com/smith3v/tg-word-reminder/pkg/db"
 	"github.com/smith3v/tg-word-reminder/pkg/internal/testutil"
 	"github.com/smith3v/tg-word-reminder/pkg/logger"
@@ -30,6 +31,7 @@ func TestHandleGetPairWithoutWords(t *testing.T) {
 func TestHandleGetPairSendsRandomPair(t *testing.T) {
 	testutil.SetupTestDB(t)
 	logger.SetLogLevel(logger.ERROR)
+	training.ResetDefaultManager(time.Now)
 
 	if err := db.DB.Create(&db.WordPair{
 		UserID:   505,
@@ -50,6 +52,44 @@ func TestHandleGetPairSendsRandomPair(t *testing.T) {
 	got := client.lastMessageText(t)
 	if !strings.Contains(got, "_Adios_") || !strings.Contains(got, "||") {
 		t.Fatalf("expected message to contain both words, got %q", got)
+	}
+}
+
+func TestHandleGetPairResumesPersistedSession(t *testing.T) {
+	testutil.SetupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+	training.ResetDefaultManager(time.Now)
+	training.ResetOverdueManager(time.Now)
+
+	now := time.Date(2025, 1, 5, 10, 0, 0, 0, time.UTC)
+	pairs := []db.WordPair{
+		{UserID: 707, Word1: "hola", Word2: "adios", SrsState: "new", SrsDueAt: now},
+		{UserID: 707, Word1: "uno", Word2: "one", SrsState: "new", SrsDueAt: now},
+	}
+	if err := db.DB.Create(&pairs).Error; err != nil {
+		t.Fatalf("failed to seed pairs: %v", err)
+	}
+
+	session := training.DefaultManager.StartOrRestart(707, 707, pairs)
+	if session == nil || session.CurrentPair() == nil {
+		t.Fatalf("expected in-memory session")
+	}
+
+	client := newMockClient()
+	client.response = `{"ok":true,"result":{"message_id":77}}`
+	b := newTestTelegramBot(t, client)
+	update := newTestUpdate("/getpair", 707)
+
+	HandleGetPair(context.Background(), b, update)
+
+	sendCount := 0
+	for _, req := range client.requests {
+		if strings.Contains(req.path, "sendMessage") {
+			sendCount++
+		}
+	}
+	if sendCount != 1 {
+		t.Fatalf("expected one sendMessage for resumed session, got %d", sendCount)
 	}
 }
 

@@ -36,6 +36,10 @@ func NewOverdueManager(now func() time.Time) *OverdueManager {
 
 var DefaultOverdue = NewOverdueManager(nil)
 
+func ResetOverdueManager(now func() time.Time) {
+	DefaultOverdue = NewOverdueManager(now)
+}
+
 func (m *OverdueManager) Start(chatID, userID int64) string {
 	token := fmt.Sprintf("%x", rand.Int63())
 	key := getSessionKey(chatID, userID)
