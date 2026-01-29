@@ -2,6 +2,8 @@ package reminders
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/go-telegram/bot"
@@ -69,6 +71,8 @@ func handleUserReminder(ctx context.Context, b *bot.Bot, user db.UserSettings, n
 		}
 		return
 	}
+
+	expireActiveSession(ctx, b, user, now)
 
 	overdueCount, err := countOverdue(user.UserID, now)
 	if err != nil {
@@ -141,6 +145,60 @@ func sendTrainingSession(ctx context.Context, b *bot.Bot, user db.UserSettings, 
 	training.DefaultManager.SetCurrentMessageID(session, msg.ID)
 	training.DefaultManager.SetCurrentPromptText(session, prompt)
 	return true, nil
+}
+
+func expireActiveSession(ctx context.Context, b *bot.Bot, user db.UserSettings, now time.Time) {
+	sessionRow, err := training.LoadTrainingSession(user.UserID, user.UserID, now)
+	if err != nil {
+		logger.Error("failed to load active session", "user_id", user.UserID, "error", err)
+		return
+	}
+	if sessionRow == nil {
+		return
+	}
+
+	if sessionRow.CurrentMessageID != 0 {
+		expiredText := buildExpiredSessionText(user.UserID, sessionRow)
+		if _, err := b.EditMessageText(ctx, &bot.EditMessageTextParams{
+			ChatID:    user.UserID,
+			MessageID: sessionRow.CurrentMessageID,
+			Text:      expiredText,
+			ReplyMarkup: &models.InlineKeyboardMarkup{
+				InlineKeyboard: [][]models.InlineKeyboardButton{},
+			},
+		}); err != nil {
+			logger.Error("failed to edit expired session message", "user_id", user.UserID, "error", err)
+		}
+	}
+
+	training.DefaultManager.End(user.UserID, user.UserID)
+}
+
+func buildExpiredSessionText(userID int64, sessionRow *db.TrainingSession) string {
+	base := ""
+	if snapshot, ok := training.DefaultManager.Snapshot(userID, userID); ok {
+		base = snapshot.PromptText
+		if base == "" {
+			base = training.BuildPrompt(snapshot.Pair)
+		}
+	}
+
+	if base == "" && sessionRow != nil && len(sessionRow.PairIDs) > 0 {
+		var ids []uint
+		if err := json.Unmarshal(sessionRow.PairIDs, &ids); err == nil {
+			if sessionRow.CurrentIndex >= 0 && sessionRow.CurrentIndex < len(ids) {
+				var pair db.WordPair
+				if err := db.DB.First(&pair, ids[sessionRow.CurrentIndex]).Error; err == nil && pair.ID != 0 {
+					base = training.BuildPrompt(pair)
+				}
+			}
+		}
+	}
+
+	if base == "" {
+		return "The session is expired."
+	}
+	return fmt.Sprintf("%s\n\nThe session is expired.", base)
 }
 
 func latestDueSlot(now time.Time, user db.UserSettings) (time.Time, bool) {
