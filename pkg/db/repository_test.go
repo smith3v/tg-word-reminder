@@ -13,7 +13,7 @@ func TestMigrateReminderSlots(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open sqlite database: %v", err)
 	}
-	if err := gdb.AutoMigrate(&WordPair{}, &UserSettings{}, &GameSession{}); err != nil {
+	if err := gdb.AutoMigrate(&WordPair{}, &UserSettings{}, &GameSession{}, &TrainingSession{}, &GameSessionState{}); err != nil {
 		t.Fatalf("failed to migrate schema: %v", err)
 	}
 
@@ -104,7 +104,7 @@ func TestMigrateNewRanks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open sqlite database: %v", err)
 	}
-	if err := gdb.AutoMigrate(&WordPair{}, &UserSettings{}, &GameSession{}); err != nil {
+	if err := gdb.AutoMigrate(&WordPair{}, &UserSettings{}, &GameSession{}, &TrainingSession{}, &GameSessionState{}); err != nil {
 		t.Fatalf("failed to migrate schema: %v", err)
 	}
 
@@ -142,5 +142,22 @@ func TestMigrateNewRanks(t *testing.T) {
 	}
 	if updated.SrsNewRank == 0 {
 		t.Fatalf("expected srs_new_rank to be set, got %+v", updated)
+	}
+}
+
+func TestMigrateSessionTables(t *testing.T) {
+	gdb, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to open sqlite database: %v", err)
+	}
+	if err := gdb.AutoMigrate(&WordPair{}, &UserSettings{}, &GameSession{}, &TrainingSession{}, &GameSessionState{}); err != nil {
+		t.Fatalf("failed to migrate schema: %v", err)
+	}
+
+	if !gdb.Migrator().HasTable(&TrainingSession{}) {
+		t.Fatalf("expected training_sessions table to exist")
+	}
+	if !gdb.Migrator().HasTable(&GameSessionState{}) {
+		t.Fatalf("expected game_session_states table to exist")
 	}
 }

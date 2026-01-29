@@ -1,7 +1,11 @@
 // pkg/db/models.go
 package db
 
-import "time"
+import (
+	"time"
+
+	"gorm.io/datatypes"
+)
 
 const SrsNewRankMax = 1000000000
 
@@ -46,4 +50,38 @@ type GameSession struct {
 	EndedReason     *string
 	CorrectCount    int `gorm:"not null;default:0"`
 	AttemptCount    int `gorm:"not null;default:0"`
+}
+
+type TrainingSession struct {
+	ID               uint           `gorm:"primaryKey"`
+	ChatID           int64          `gorm:"index;uniqueIndex:idx_training_session_user_chat"`
+	UserID           int64          `gorm:"index;uniqueIndex:idx_training_session_user_chat"`
+	PairIDs          datatypes.JSON `gorm:"not null"`
+	CurrentIndex     int            `gorm:"not null;default:0"`
+	CurrentToken     string         `gorm:"not null;default:''"`
+	CurrentMessageID int            `gorm:"not null;default:0"`
+	LastActivityAt   time.Time      `gorm:"not null"`
+	ExpiresAt        time.Time      `gorm:"not null"`
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
+type GameSessionState struct {
+	ID               uint           `gorm:"primaryKey"`
+	ChatID           int64          `gorm:"index;uniqueIndex:idx_game_session_state_user_chat"`
+	UserID           int64          `gorm:"index;uniqueIndex:idx_game_session_state_user_chat"`
+	PairIDs          datatypes.JSON `gorm:"not null"`
+	CurrentIndex     int            `gorm:"not null;default:0"`
+	CurrentToken     string         `gorm:"not null;default:''"`
+	CurrentMessageID int            `gorm:"not null;default:0"`
+	ScoreCorrect     int            `gorm:"not null;default:0"`
+	ScoreAttempted   int            `gorm:"not null;default:0"`
+	LastActivityAt   time.Time      `gorm:"not null"`
+	ExpiresAt        time.Time      `gorm:"not null"`
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
+func (GameSessionState) TableName() string {
+	return "game_session_states"
 }
