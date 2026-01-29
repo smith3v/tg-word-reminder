@@ -568,7 +568,7 @@ func persistSessionStart(userID int64, startedAt time.Time) uint {
 	}
 	startedAt = startedAt.UTC()
 	sessionDate := time.Date(startedAt.Year(), startedAt.Month(), startedAt.Day(), 0, 0, 0, 0, time.UTC)
-	session := db.GameSession{
+	session := db.GameSessionStatistics{
 		UserID:      userID,
 		SessionDate: sessionDate,
 		StartedAt:   startedAt,
@@ -584,7 +584,7 @@ func persistSessionCounts(session *GameSession) {
 	if session == nil || session.sessionID == 0 || db.DB == nil {
 		return
 	}
-	if err := db.DB.Model(&db.GameSession{}).
+	if err := db.DB.Model(&db.GameSessionStatistics{}).
 		Where("id = ? AND ended_at IS NULL", session.sessionID).
 		Updates(map[string]interface{}{
 			"attempt_count": session.attemptCount,
@@ -600,7 +600,7 @@ func persistSessionEnd(session *GameSession, endedAt time.Time, reason string) {
 	}
 	endedAt = endedAt.UTC()
 	durationSeconds := durationFrom(session.startedAt, endedAt)
-	if err := db.DB.Model(&db.GameSession{}).
+	if err := db.DB.Model(&db.GameSessionStatistics{}).
 		Where("id = ? AND ended_at IS NULL", session.sessionID).
 		Updates(map[string]interface{}{
 			"ended_at":         endedAt,

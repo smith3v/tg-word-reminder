@@ -14,7 +14,7 @@ func SetupTestDB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open sqlite database: %v", err)
 	}
-	if err := gdb.AutoMigrate(&db.WordPair{}, &db.UserSettings{}, &db.GameSession{}); err != nil {
+	if err := gdb.AutoMigrate(&db.WordPair{}, &db.UserSettings{}, &db.GameSessionStatistics{}); err != nil {
 		t.Fatalf("failed to migrate schema: %v", err)
 	}
 

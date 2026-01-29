@@ -40,7 +40,7 @@ type UserSettings struct {
 	LastTrainingEngagedAt  *time.Time
 }
 
-type GameSession struct {
+type GameSessionStatistics struct {
 	ID              uint      `gorm:"primaryKey"`
 	UserID          int64     `gorm:"index"`
 	SessionDate     time.Time `gorm:"type:date;not null"`
@@ -50,6 +50,10 @@ type GameSession struct {
 	EndedReason     *string
 	CorrectCount    int `gorm:"not null;default:0"`
 	AttemptCount    int `gorm:"not null;default:0"`
+}
+
+func (GameSessionStatistics) TableName() string {
+	return "game_sessions"
 }
 
 type TrainingSession struct {

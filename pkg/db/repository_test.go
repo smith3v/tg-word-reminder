@@ -13,7 +13,7 @@ func TestMigrateReminderSlots(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open sqlite database: %v", err)
 	}
-	if err := gdb.AutoMigrate(&WordPair{}, &UserSettings{}, &GameSession{}, &TrainingSession{}, &GameSessionState{}); err != nil {
+	if err := gdb.AutoMigrate(&WordPair{}, &UserSettings{}, &GameSessionStatistics{}, &TrainingSession{}, &GameSessionState{}); err != nil {
 		t.Fatalf("failed to migrate schema: %v", err)
 	}
 
@@ -104,7 +104,7 @@ func TestMigrateNewRanks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open sqlite database: %v", err)
 	}
-	if err := gdb.AutoMigrate(&WordPair{}, &UserSettings{}, &GameSession{}, &TrainingSession{}, &GameSessionState{}); err != nil {
+	if err := gdb.AutoMigrate(&WordPair{}, &UserSettings{}, &GameSessionStatistics{}, &TrainingSession{}, &GameSessionState{}); err != nil {
 		t.Fatalf("failed to migrate schema: %v", err)
 	}
 
@@ -150,7 +150,7 @@ func TestMigrateSessionTables(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open sqlite database: %v", err)
 	}
-	if err := gdb.AutoMigrate(&WordPair{}, &UserSettings{}, &GameSession{}, &TrainingSession{}, &GameSessionState{}); err != nil {
+	if err := gdb.AutoMigrate(&WordPair{}, &UserSettings{}, &GameSessionStatistics{}, &TrainingSession{}, &GameSessionState{}); err != nil {
 		t.Fatalf("failed to migrate schema: %v", err)
 	}
 

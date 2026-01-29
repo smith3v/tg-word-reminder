@@ -798,9 +798,9 @@ func TestGameSessionPersistenceEndDoesNotOverwrite(t *testing.T) {
 	}
 }
 
-func fetchGameSession(t *testing.T, sessionID uint) db.GameSession {
+func fetchGameSession(t *testing.T, sessionID uint) db.GameSessionStatistics {
 	t.Helper()
-	var stored db.GameSession
+	var stored db.GameSessionStatistics
 	if err := db.DB.First(&stored, sessionID).Error; err != nil {
 		t.Fatalf("failed to load game session: %v", err)
 	}
