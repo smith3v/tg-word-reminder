@@ -183,6 +183,10 @@ func buildExpiredSessionText(userID int64, sessionRow *db.TrainingSession) strin
 		}
 	}
 
+	if base == "" && sessionRow != nil && sessionRow.CurrentPromptText != "" {
+		base = sessionRow.CurrentPromptText
+	}
+
 	if base == "" && sessionRow != nil && len(sessionRow.PairIDs) > 0 {
 		var ids []uint
 		if err := json.Unmarshal(sessionRow.PairIDs, &ids); err == nil {

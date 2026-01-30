@@ -57,23 +57,25 @@ func (GameSessionStatistics) TableName() string {
 }
 
 type TrainingSession struct {
-	ID               uint           `gorm:"primaryKey"`
-	ChatID           int64          `gorm:"index;uniqueIndex:idx_training_session_user_chat"`
-	UserID           int64          `gorm:"index;uniqueIndex:idx_training_session_user_chat"`
-	PairIDs          datatypes.JSON `gorm:"not null"`
-	CurrentIndex     int            `gorm:"not null;default:0"`
-	CurrentToken     string         `gorm:"not null;default:''"`
-	CurrentMessageID int            `gorm:"not null;default:0"`
-	LastActivityAt   time.Time      `gorm:"not null"`
-	ExpiresAt        time.Time      `gorm:"not null"`
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	ID                uint           `gorm:"primaryKey"`
+	ChatID            int64          `gorm:"index;uniqueIndex:idx_training_session_user_chat"`
+	UserID            int64          `gorm:"index;uniqueIndex:idx_training_session_user_chat"`
+	PairIDs           datatypes.JSON `gorm:"not null"`
+	CurrentIndex      int            `gorm:"not null;default:0"`
+	CurrentToken      string         `gorm:"not null;default:''"`
+	CurrentMessageID  int            `gorm:"not null;default:0"`
+	CurrentPromptText string         `gorm:"type:text;not null;default:''"`
+	LastActivityAt    time.Time      `gorm:"not null"`
+	ExpiresAt         time.Time      `gorm:"not null"`
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 type GameSessionState struct {
 	ID               uint           `gorm:"primaryKey"`
 	ChatID           int64          `gorm:"index;uniqueIndex:idx_game_session_state_user_chat"`
 	UserID           int64          `gorm:"index;uniqueIndex:idx_game_session_state_user_chat"`
+	SessionID        uint           `gorm:"not null;default:0"`
 	PairIDs          datatypes.JSON `gorm:"not null"`
 	CurrentIndex     int            `gorm:"not null;default:0"`
 	CurrentToken     string         `gorm:"not null;default:''"`

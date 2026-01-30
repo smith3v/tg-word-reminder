@@ -158,6 +158,34 @@ func TestResolveCorrectUpdatesCounts(t *testing.T) {
 	}
 }
 
+func TestResolveCorrectPersistsState(t *testing.T) {
+	testutil.SetupTestDB(t)
+	clock := &testClock{t: time.Date(2024, 2, 2, 8, 0, 0, 0, time.UTC)}
+	manager := NewGameManager(clock.Now)
+
+	pairs := []db.WordPair{
+		{ID: 1, UserID: 22, Word1: "hola", Word2: "adios"},
+	}
+
+	session := manager.StartOrRestart(11, 22, pairs)
+	if session == nil {
+		t.Fatalf("expected session")
+	}
+
+	manager.ResolveCorrect(session)
+
+	var state db.GameSessionState
+	if err := db.DB.Where("chat_id = ? AND user_id = ?", 11, 22).First(&state).Error; err != nil {
+		t.Fatalf("failed to load game session state: %v", err)
+	}
+	if state.ScoreCorrect != 1 || state.ScoreAttempted != 1 {
+		t.Fatalf("expected persisted counts 1/1, got correct=%d attempted=%d", state.ScoreCorrect, state.ScoreAttempted)
+	}
+	if state.CurrentToken == "" {
+		t.Fatalf("expected persisted token")
+	}
+}
+
 func TestResolveMissRequeueUpdatesCountsAndDeck(t *testing.T) {
 	clock := &testClock{t: time.Date(2024, 2, 1, 8, 0, 0, 0, time.UTC)}
 	manager := NewGameManager(clock.Now)

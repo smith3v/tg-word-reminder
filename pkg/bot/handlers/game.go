@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/smith3v/tg-word-reminder/pkg/bot/game"
+	"github.com/smith3v/tg-word-reminder/pkg/db"
 	"github.com/smith3v/tg-word-reminder/pkg/logger"
 )
 
@@ -26,6 +28,11 @@ func HandleGameStart(ctx context.Context, b *bot.Bot, update *models.Update) {
 			ChatID: update.Message.Chat.ID,
 			Text:   "The /game command works only in private chat.",
 		})
+		return
+	}
+
+	now := time.Now().UTC()
+	if resumeGameSession(ctx, b, update.Message.Chat.ID, update.Message.From.ID, now) {
 		return
 	}
 
@@ -61,6 +68,54 @@ func HandleGameStart(ctx context.Context, b *bot.Bot, update *models.Update) {
 		return
 	}
 	game.DefaultManager.SetCurrentMessageID(session, msg.ID)
+}
+
+func resumeGameSession(ctx context.Context, b *bot.Bot, chatID, userID int64, now time.Time) bool {
+	row, err := game.LoadGameSessionState(chatID, userID, now)
+	if err != nil {
+		logger.Error("failed to load game session state", "user_id", userID, "error", err)
+		return false
+	}
+	if row == nil {
+		return false
+	}
+
+	ids, err := game.SessionPairIDs(row)
+	if err != nil {
+		logger.Error("failed to decode game session pairs", "user_id", userID, "error", err)
+		return false
+	}
+	var pairs []db.WordPair
+	if len(ids) > 0 {
+		if err := db.DB.Where("id IN (?)", ids).Find(&pairs).Error; err != nil {
+			logger.Error("failed to load game pairs", "user_id", userID, "error", err)
+			return false
+		}
+	}
+	if len(pairs) == 0 {
+		if err := game.DeleteGameSessionState(chatID, userID); err != nil {
+			logger.Error("failed to delete empty game session", "user_id", userID, "error", err)
+		}
+		return false
+	}
+
+	session, err := game.DefaultManager.StartFromPersisted(row, pairs)
+	if err != nil {
+		logger.Error("failed to resume game session", "user_id", userID, "error", err)
+		return false
+	}
+
+	if session.CurrentCard() == nil {
+		return false
+	}
+
+	msg, err := sendGamePrompt(ctx, b, chatID, session.CurrentCard(), session.CurrentToken(), true)
+	if err != nil {
+		logger.Error("failed to send resumed game prompt", "user_id", userID, "error", err)
+		return false
+	}
+	game.DefaultManager.SetCurrentMessageID(session, msg.ID)
+	return true
 }
 
 func HandleGameCallback(ctx context.Context, b *bot.Bot, update *models.Update) {

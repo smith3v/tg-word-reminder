@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/smith3v/tg-word-reminder/pkg/internal/testutil"
 	"github.com/smith3v/tg-word-reminder/pkg/logger"
 	"github.com/smith3v/tg-word-reminder/pkg/ui"
+	"gorm.io/datatypes"
 )
 
 func resetGameManager(now func() time.Time) {
@@ -96,6 +98,59 @@ func TestHandleGameStartSendsPromptWithCallback(t *testing.T) {
 	callback := token[:end]
 	if len(callback) > ui.MaxCallbackDataLen {
 		t.Fatalf("callback_data too long: %d", len(callback))
+	}
+}
+
+func TestHandleGameStartResumesPersistedSession(t *testing.T) {
+	testutil.SetupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+	resetGameManager(time.Now)
+
+	now := time.Now().UTC()
+	pair := db.WordPair{UserID: 919, Word1: "Hola", Word2: "Adios"}
+	if err := db.DB.Create(&pair).Error; err != nil {
+		t.Fatalf("failed to seed word pair: %v", err)
+	}
+
+	deck := []map[string]interface{}{
+		{
+			"pair_id":   pair.ID,
+			"direction": game.DirectionAToB,
+		},
+	}
+	raw, err := json.Marshal(deck)
+	if err != nil {
+		t.Fatalf("failed to marshal deck: %v", err)
+	}
+	if err := db.DB.Create(&db.GameSessionState{
+		ChatID:           919,
+		UserID:           919,
+		PairIDs:          datatypes.JSON(raw),
+		CurrentIndex:     0,
+		CurrentToken:     "tok",
+		CurrentMessageID: 11,
+		LastActivityAt:   now,
+		ExpiresAt:        now.Add(time.Hour),
+	}).Error; err != nil {
+		t.Fatalf("failed to seed game session state: %v", err)
+	}
+
+	client := newMockClient()
+	client.response = `{"ok":true,"result":{"message_id":77}}`
+	b := newTestTelegramBot(t, client)
+	update := newTestUpdate("/game", 919)
+	update.Message.Chat.Type = models.ChatTypePrivate
+
+	HandleGameStart(context.Background(), b, update)
+
+	got := client.lastMessageText(t)
+	if !strings.Contains(got, "Hola") {
+		t.Fatalf("expected resumed prompt, got %q", got)
+	}
+
+	body := client.lastRequestBody(t)
+	if !strings.Contains(body, "g:r:tok") {
+		t.Fatalf("expected resumed token in callback data, got %q", body)
 	}
 }
 

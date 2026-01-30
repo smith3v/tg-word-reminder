@@ -141,17 +141,18 @@ func (m *SessionManager) StartFromPersisted(row *db.TrainingSession, pairs []db.
 	}
 
 	session := &Session{
-		chatID:           row.ChatID,
-		userID:           row.UserID,
-		queue:            append([]db.WordPair(nil), ordered[row.CurrentIndex+1:]...),
-		pairIDs:          pairIDs,
-		currentPair:      &ordered[row.CurrentIndex],
-		currentToken:     row.CurrentToken,
-		currentMessageID: row.CurrentMessageID,
-		lastActivityAt:   row.LastActivityAt,
-		currentIndex:     row.CurrentIndex,
-		totalPairs:       len(ordered),
-		reviewedCount:    row.CurrentIndex,
+		chatID:            row.ChatID,
+		userID:            row.UserID,
+		queue:             append([]db.WordPair(nil), ordered[row.CurrentIndex+1:]...),
+		pairIDs:           pairIDs,
+		currentPair:       &ordered[row.CurrentIndex],
+		currentToken:      row.CurrentToken,
+		currentMessageID:  row.CurrentMessageID,
+		currentPromptText: row.CurrentPromptText,
+		lastActivityAt:    row.LastActivityAt,
+		currentIndex:      row.CurrentIndex,
+		totalPairs:        len(ordered),
+		reviewedCount:     row.CurrentIndex,
 	}
 	key := getSessionKey(row.ChatID, row.UserID)
 	m.mu.Lock()
@@ -243,8 +244,16 @@ func (m *SessionManager) SetCurrentPromptText(session *Session, text string) {
 		return
 	}
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	session.currentPromptText = text
+	dbSession, err := buildTrainingSession(session)
+	m.mu.Unlock()
+	if err != nil {
+		logger.Error("failed to build training session", "user_id", session.userID, "error", err)
+		return
+	}
+	if err := UpsertTrainingSession(dbSession); err != nil {
+		logger.Error("failed to persist training session", "user_id", session.userID, "error", err)
+	}
 }
 
 func (m *SessionManager) Touch(chatID, userID int64) {
@@ -348,12 +357,13 @@ func buildTrainingSession(session *Session) (*db.TrainingSession, error) {
 		return nil, err
 	}
 	return &db.TrainingSession{
-		ChatID:           session.chatID,
-		UserID:           session.userID,
-		PairIDs:          datatypes.JSON(raw),
-		CurrentIndex:     session.currentIndex,
-		CurrentToken:     session.currentToken,
-		CurrentMessageID: session.currentMessageID,
-		LastActivityAt:   session.lastActivityAt,
+		ChatID:            session.chatID,
+		UserID:            session.userID,
+		PairIDs:           datatypes.JSON(raw),
+		CurrentIndex:      session.currentIndex,
+		CurrentToken:      session.currentToken,
+		CurrentMessageID:  session.currentMessageID,
+		CurrentPromptText: session.currentPromptText,
+		LastActivityAt:    session.lastActivityAt,
 	}, nil
 }
