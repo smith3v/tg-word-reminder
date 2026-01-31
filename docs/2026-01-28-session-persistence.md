@@ -32,6 +32,9 @@ One row per active training session.
   - Current callback token used to validate grading actions.
 - `current_message_id` (int)
   - Message ID of the currently displayed prompt.
+- `current_prompt_text` (text)
+  - Last prompt text sent to the user.
+  - Used to append expiry text without rebuilding a randomized prompt.
 - `last_activity_at` (timestamp)
   - Updated on start and each grade; used for expiry.
 - `expires_at` (timestamp)
@@ -42,7 +45,7 @@ One row per active training session.
 Uniqueness:
 - Unique index on `(chat_id, user_id)`.
 
-### game_sessions
+### game_session_states
 One row per active game session.
 
 - `chat_id` (int64)
@@ -50,13 +53,16 @@ One row per active game session.
 - `user_id` (int64)
   - Telegram user ID. Part of the session key.
 - `pair_ids` (json array of uint)
-  - Ordered queue of word-pair IDs for the game.
+  - Ordered deck of cards, serialized as `{pair_id, direction}` entries.
+  - The current card is stored first, followed by the remaining deck.
 - `current_index` (int)
-  - 0-based index into `pair_ids` for the active question.
+  - 0-based index into `pair_ids` for the active question (typically `0`).
 - `current_token` (string)
   - Current callback token used to validate answers.
 - `current_message_id` (int)
   - Message ID of the currently displayed prompt.
+- `session_id` (uint)
+  - Foreign key to the game statistics row in `game_sessions`.
 - `score_correct` (int)
   - Running correct answer count.
 - `score_attempted` (int)
@@ -77,7 +83,7 @@ Uniqueness:
 - On `/review`, `/getpair`, or reminder start:
   - If an active session exists and `expires_at > now`, resume it.
   - Otherwise create a new session row and send the first prompt.
-- Prompt text is recomputed from `pair_ids[current_index]` (not stored).
+- Prompt text is stored in `current_prompt_text` to preserve the exact message.
 
 ### Training callbacks
 - On grade:
@@ -94,7 +100,7 @@ Uniqueness:
 
 ### Reminder ticks
 - If an active training session exists for the user:
-  - Edit the last session message to: `The session is expired.`
+  - Edit the last session message by appending: `The session is expired.`
   - Remove inline buttons.
   - Delete the session row.
   - Start a fresh reminder session immediately.
