@@ -163,6 +163,9 @@ func HandleGameCallback(ctx context.Context, b *bot.Bot, update *models.Update) 
 	userID := update.CallbackQuery.From.ID
 	result := game.DefaultManager.ResolveRevealAttempt(chatID, userID, token, msg.ID)
 	if !result.Handled {
+		result = resumeGameSessionForCallback(chatID, userID, token, msg.ID)
+	}
+	if !result.Handled {
 		notice := result.Notice
 		if notice == "" {
 			notice = "Not active"
@@ -202,6 +205,37 @@ func HandleGameCallback(ctx context.Context, b *bot.Bot, update *models.Update) 
 		}
 		game.DefaultManager.SetCurrentMessageIDForToken(chatID, userID, result.NextToken, nextMsg.ID)
 	}
+}
+
+func resumeGameSessionForCallback(chatID, userID int64, token string, messageID int) game.RevealResult {
+	now := time.Now().UTC()
+	sessionRow, err := game.LoadGameSession(chatID, userID, now)
+	if err != nil || sessionRow == nil {
+		return game.RevealResult{}
+	}
+	if sessionRow.CurrentToken != token || sessionRow.CurrentMessageID != messageID {
+		return game.RevealResult{}
+	}
+	ids, err := game.SessionPairIDs(sessionRow)
+	if err != nil {
+		return game.RevealResult{}
+	}
+	if len(ids) == 0 {
+		_ = game.DeleteGameSession(chatID, userID)
+		return game.RevealResult{}
+	}
+	var pairs []db.WordPair
+	if err := db.DB.Where("id IN (?)", ids).Find(&pairs).Error; err != nil {
+		return game.RevealResult{}
+	}
+	if len(pairs) == 0 {
+		_ = game.DeleteGameSession(chatID, userID)
+		return game.RevealResult{}
+	}
+	if _, err := game.DefaultManager.StartFromPersisted(sessionRow, pairs); err != nil {
+		return game.RevealResult{}
+	}
+	return game.DefaultManager.ResolveRevealAttempt(chatID, userID, token, messageID)
 }
 
 func handleGameTextAttempt(ctx context.Context, b *bot.Bot, update *models.Update) bool {

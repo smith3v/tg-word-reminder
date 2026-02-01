@@ -199,6 +199,9 @@ func HandleReviewCallback(ctx context.Context, b *bot.Bot, update *models.Update
 	}
 
 	snapshot, ok := training.DefaultManager.Snapshot(msg.Chat.ID, update.CallbackQuery.From.ID)
+	if !ok {
+		snapshot, ok = resumeReviewSessionForCallback(msg.Chat.ID, update.CallbackQuery.From.ID, token, msg.ID)
+	}
 	if !ok || snapshot.Token != token || snapshot.MessageID != msg.ID {
 		answerCallback("Not active")
 		return
@@ -259,6 +262,29 @@ func HandleReviewCallback(ctx context.Context, b *bot.Bot, update *models.Update
 		training.DefaultManager.SetCurrentMessageID(session, nextMsg.ID)
 		training.DefaultManager.SetCurrentPromptText(session, prompt)
 	}
+}
+
+func resumeReviewSessionForCallback(chatID, userID int64, token string, messageID int) (training.SessionSnapshot, bool) {
+	now := time.Now().UTC()
+	sessionRow, err := training.LoadTrainingSession(chatID, userID, now)
+	if err != nil || sessionRow == nil {
+		return training.SessionSnapshot{}, false
+	}
+	if sessionRow.CurrentToken != token || sessionRow.CurrentMessageID != messageID {
+		return training.SessionSnapshot{}, false
+	}
+	pairs, err := loadPairsForSession(sessionRow)
+	if err != nil {
+		return training.SessionSnapshot{}, false
+	}
+	if len(pairs) == 0 {
+		_ = training.DeleteTrainingSession(chatID, userID)
+		return training.SessionSnapshot{}, false
+	}
+	if _, err := training.DefaultManager.StartFromPersisted(sessionRow, pairs); err != nil {
+		return training.SessionSnapshot{}, false
+	}
+	return training.DefaultManager.Snapshot(chatID, userID)
 }
 
 func parseReviewCallback(data string) (string, training.Grade, bool) {

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	"github.com/smith3v/tg-word-reminder/pkg/db"
 	"github.com/smith3v/tg-word-reminder/pkg/internal/testutil"
 	"github.com/smith3v/tg-word-reminder/pkg/logger"
+	"gorm.io/datatypes"
 )
 
 func TestHandleReviewNoPairs(t *testing.T) {
@@ -112,6 +114,53 @@ func TestHandleReviewCallbackUpdatesPair(t *testing.T) {
 	}
 	if editCount < 1 {
 		t.Fatalf("expected editMessageText call, got %d", editCount)
+	}
+}
+
+func TestHandleReviewCallbackResumesPersistedSession(t *testing.T) {
+	testutil.SetupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+	training.ResetDefaultManager(time.Now)
+	training.ResetOverdueManager(time.Now)
+
+	now := time.Now().UTC().Add(-time.Hour)
+	pair := db.WordPair{UserID: 3010, Word1: "flow", Word2: "de stroom", SrsState: "new", SrsDueAt: now}
+	if err := db.DB.Create(&pair).Error; err != nil {
+		t.Fatalf("failed to seed pair: %v", err)
+	}
+
+	prompt := training.BuildPrompt(pair)
+	ids, err := json.Marshal([]uint{pair.ID})
+	if err != nil {
+		t.Fatalf("failed to marshal ids: %v", err)
+	}
+	if err := db.DB.Create(&db.TrainingSession{
+		ChatID:            3010,
+		UserID:            3010,
+		PairIDs:           datatypes.JSON(ids),
+		CurrentIndex:      0,
+		CurrentToken:      "tok",
+		CurrentMessageID:  88,
+		CurrentPromptText: prompt,
+		LastActivityAt:    time.Now().UTC(),
+		ExpiresAt:         time.Now().UTC().Add(24 * time.Hour),
+	}).Error; err != nil {
+		t.Fatalf("failed to seed training session: %v", err)
+	}
+
+	training.ResetDefaultManager(time.Now)
+
+	client := newMockClient()
+	b := newTestTelegramBot(t, client)
+	callback := newTestCallbackUpdate("t:grade:tok:good", 3010, 3010, 88)
+	HandleReviewCallback(context.Background(), b, callback)
+
+	var updated db.WordPair
+	if err := db.DB.Where("id = ?", pair.ID).First(&updated).Error; err != nil {
+		t.Fatalf("failed to load updated pair: %v", err)
+	}
+	if updated.SrsState != "learning" || updated.SrsStep != 1 {
+		t.Fatalf("expected learning step 1 after good grade, got %+v", updated)
 	}
 }
 
@@ -291,7 +340,6 @@ func TestHandleOverdueCallbackSnoozeEndsSession(t *testing.T) {
 		t.Fatalf("expected session to end after snooze")
 	}
 }
-
 
 func TestHandleReviewResumesPersistedSession(t *testing.T) {
 	testutil.SetupTestDB(t)
