@@ -167,6 +167,7 @@ func expireActiveSession(ctx context.Context, b *bot.Bot, user db.UserSettings, 
 			ChatID:    user.UserID,
 			MessageID: sessionRow.CurrentMessageID,
 			Text:      expiredText,
+			ParseMode: models.ParseModeMarkdown,
 			ReplyMarkup: &models.InlineKeyboardMarkup{
 				InlineKeyboard: [][]models.InlineKeyboardButton{},
 			},
