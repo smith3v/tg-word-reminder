@@ -150,7 +150,8 @@ func migrateGameSessionSequences(db *gorm.DB) error {
 	return db.Exec(`
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'game_sessions_id_seq') THEN
+  IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'game_sessions_id_seq')
+     AND NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'game_session_statistics_id_seq') THEN
     ALTER SEQUENCE game_sessions_id_seq RENAME TO game_session_statistics_id_seq;
   END IF;
 
@@ -161,7 +162,8 @@ BEGIN
       OWNED BY game_session_statistics.id;
   END IF;
 
-  IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'game_session_states_id_seq') THEN
+  IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'game_session_states_id_seq')
+     AND NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'game_sessions_id_seq') THEN
     ALTER SEQUENCE game_session_states_id_seq RENAME TO game_sessions_id_seq;
   END IF;
 
