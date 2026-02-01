@@ -238,6 +238,40 @@ func resumeGameSessionForCallback(chatID, userID int64, token string, messageID 
 	return game.DefaultManager.ResolveRevealAttempt(chatID, userID, token, messageID)
 }
 
+func resumeGameSessionForText(chatID, userID int64, replyMessageID int) bool {
+	now := time.Now().UTC()
+	sessionRow, err := game.LoadGameSession(chatID, userID, now)
+	if err != nil || sessionRow == nil {
+		return false
+	}
+	if sessionRow.CurrentMessageID == 0 {
+		return false
+	}
+	if replyMessageID != 0 && sessionRow.CurrentMessageID != replyMessageID {
+		return false
+	}
+	ids, err := game.SessionPairIDs(sessionRow)
+	if err != nil {
+		return false
+	}
+	if len(ids) == 0 {
+		_ = game.DeleteGameSession(chatID, userID)
+		return false
+	}
+	var pairs []db.WordPair
+	if err := db.DB.Where("id IN (?)", ids).Find(&pairs).Error; err != nil {
+		return false
+	}
+	if len(pairs) == 0 {
+		_ = game.DeleteGameSession(chatID, userID)
+		return false
+	}
+	if _, err := game.DefaultManager.StartFromPersisted(sessionRow, pairs); err != nil {
+		return false
+	}
+	return true
+}
+
 func handleGameTextAttempt(ctx context.Context, b *bot.Bot, update *models.Update) bool {
 	if update == nil || update.Message == nil || update.Message.From == nil || update.Message.Chat.ID == 0 {
 		return false
@@ -258,7 +292,13 @@ func handleGameTextAttempt(ctx context.Context, b *bot.Bot, update *models.Updat
 		return session != nil
 	}
 	if session == nil {
-		return false
+		replyID := 0
+		if update.Message.ReplyToMessage != nil {
+			replyID = update.Message.ReplyToMessage.ID
+		}
+		if !resumeGameSessionForText(chatID, userID, replyID) {
+			return false
+		}
 	}
 
 	result := game.DefaultManager.ResolveTextAttempt(chatID, userID, text)

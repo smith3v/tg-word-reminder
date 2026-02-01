@@ -187,6 +187,69 @@ func TestHandleGameTextAttemptNextPromptOmitsHint(t *testing.T) {
 	}
 }
 
+func TestHandleGameTextAttemptResumesPersistedSession(t *testing.T) {
+	testutil.SetupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+	resetGameManager(time.Now)
+
+	pair := db.WordPair{UserID: 2102, Word1: "Hola", Word2: "Adios"}
+	if err := db.DB.Create(&pair).Error; err != nil {
+		t.Fatalf("failed to seed word pair: %v", err)
+	}
+
+	deck := []map[string]interface{}{
+		{
+			"pair_id":   pair.ID,
+			"direction": game.DirectionAToB,
+		},
+	}
+	raw, err := json.Marshal(deck)
+	if err != nil {
+		t.Fatalf("failed to marshal deck: %v", err)
+	}
+	if err := db.DB.Create(&db.GameSession{
+		ChatID:           2102,
+		UserID:           2102,
+		PairIDs:          datatypes.JSON(raw),
+		CurrentIndex:     0,
+		CurrentToken:     "tok",
+		CurrentMessageID: 77,
+		LastActivityAt:   time.Now().UTC(),
+		ExpiresAt:        time.Now().UTC().Add(time.Hour),
+	}).Error; err != nil {
+		t.Fatalf("failed to seed game session: %v", err)
+	}
+
+	resetGameManager(time.Now)
+
+	client := newMockClient()
+	b := newTestTelegramBot(t, client)
+	update := newTestUpdate(pair.Word2, 2102)
+	update.Message.ReplyToMessage = &models.Message{
+		ID: 77,
+		Chat: models.Chat{
+			ID:   2102,
+			Type: models.ChatTypePrivate,
+		},
+	}
+
+	handled := handleGameTextAttempt(context.Background(), b, update)
+	if !handled {
+		t.Fatalf("expected text attempt to be handled")
+	}
+
+	edited := false
+	for _, req := range client.requests {
+		if strings.Contains(req.path, "editMessageText") {
+			edited = true
+			break
+		}
+	}
+	if !edited {
+		t.Fatalf("expected editMessageText after resuming session")
+	}
+}
+
 func TestHandleGameCallbackIgnoresStaleToken(t *testing.T) {
 	logger.SetLogLevel(logger.ERROR)
 	resetGameManager(time.Now)
