@@ -39,6 +39,9 @@ func HandleGetPair(ctx context.Context, b *bot.Bot, update *models.Update) {
 	}
 
 	now := time.Now().UTC()
+	if resumeSession(ctx, b, update.Message.Chat.ID, update.Message.From.ID, now) {
+		return
+	}
 	pairs, err := training.SelectSessionPairs(update.Message.From.ID, 1, now)
 	if err != nil {
 		logger.Error("failed to load getpair pairs", "user_id", update.Message.From.ID, "error", err)

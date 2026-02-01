@@ -76,6 +76,7 @@ func main() {
 	go reminders.StartPeriodicMessages(ctx, b)
 	go game.StartGameSweeper(ctx, botSender{b: b})
 	go training.StartTrainingSweeper(ctx)
+	go db.StartSessionCleanup(ctx, 0)
 	go feedback.DefaultManager.StartSweeper(ctx)
 	go handlers.StartActivityFlusher(ctx, tracker)
 
