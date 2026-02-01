@@ -63,6 +63,7 @@ func (m *GameManager) StartFromPersisted(row *db.GameSessionState, pairs []db.Wo
 	if row == nil {
 		return nil, errors.New("nil game session state")
 	}
+	resumeAt := m.now()
 	var persisted []persistedCard
 	if err := json.Unmarshal(row.PairIDs, &persisted); err != nil {
 		return nil, err
@@ -97,7 +98,7 @@ func (m *GameManager) StartFromPersisted(row *db.GameSessionState, pairs []db.Wo
 		userID:           row.UserID,
 		sessionID:        row.SessionID,
 		startedAt:        row.LastActivityAt,
-		lastActivityAt:   row.LastActivityAt,
+		lastActivityAt:   resumeAt,
 		correctCount:     row.ScoreCorrect,
 		attemptCount:     row.ScoreAttempted,
 		currentCard:      &deck[row.CurrentIndex],
@@ -111,6 +112,7 @@ func (m *GameManager) StartFromPersisted(row *db.GameSessionState, pairs []db.Wo
 	m.mu.Lock()
 	m.sessions[key] = session
 	m.mu.Unlock()
+	persistGameSessionState(session)
 	return session, nil
 }
 

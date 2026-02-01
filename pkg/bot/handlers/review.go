@@ -122,7 +122,10 @@ func resumeSession(ctx context.Context, b *bot.Bot, chatID, userID int64, now ti
 		return false
 	}
 
-	prompt := training.BuildPrompt(*card)
+	prompt := sessionRow.CurrentPromptText
+	if prompt == "" {
+		prompt = training.BuildPrompt(*card)
+	}
 	msg, err := b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:      chatID,
 		Text:        prompt,
