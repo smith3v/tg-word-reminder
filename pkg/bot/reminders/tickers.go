@@ -14,9 +14,10 @@ import (
 )
 
 const (
-	slotMorningHour   = 8
-	slotAfternoonHour = 13
-	slotEveningHour   = 20
+	slotMorningHour    = 8
+	slotAfternoonHour  = 13
+	slotEveningHour    = 20
+	activeSessionGrace = 15 * time.Minute
 )
 
 func StartPeriodicMessages(ctx context.Context, b *bot.Bot) {
@@ -55,6 +56,14 @@ func handleUserReminder(ctx context.Context, b *bot.Bot, user db.UserSettings, n
 		return
 	}
 
+	sessionRow, err := training.LoadTrainingSession(user.UserID, user.UserID, now)
+	if err != nil {
+		logger.Error("failed to load active session", "user_id", user.UserID, "error", err)
+	}
+	if sessionRow != nil && now.Sub(sessionRow.LastActivityAt) <= activeSessionGrace {
+		return
+	}
+
 	missed := computeMissedCount(user)
 	if missed >= 3 {
 		if !user.TrainingPaused {
@@ -72,7 +81,7 @@ func handleUserReminder(ctx context.Context, b *bot.Bot, user db.UserSettings, n
 		return
 	}
 
-	expireActiveSession(ctx, b, user, now)
+	expireActiveSession(ctx, b, user, sessionRow)
 
 	overdueCount, err := countOverdue(user.UserID, now)
 	if err != nil {
@@ -147,12 +156,7 @@ func sendTrainingSession(ctx context.Context, b *bot.Bot, user db.UserSettings, 
 	return true, nil
 }
 
-func expireActiveSession(ctx context.Context, b *bot.Bot, user db.UserSettings, now time.Time) {
-	sessionRow, err := training.LoadTrainingSession(user.UserID, user.UserID, now)
-	if err != nil {
-		logger.Error("failed to load active session", "user_id", user.UserID, "error", err)
-		return
-	}
+func expireActiveSession(ctx context.Context, b *bot.Bot, user db.UserSettings, sessionRow *db.TrainingSession) {
 	if sessionRow == nil {
 		return
 	}

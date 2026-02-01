@@ -308,7 +308,7 @@ func TestReminderExpiresActiveSession(t *testing.T) {
 		CurrentIndex:     0,
 		CurrentToken:     "tok",
 		CurrentMessageID: 55,
-		LastActivityAt:   now.Add(-time.Minute),
+		LastActivityAt:   now.Add(-activeSessionGrace - time.Minute),
 		ExpiresAt:        now.Add(time.Hour),
 	}).Error; err != nil {
 		t.Fatalf("failed to seed training session: %v", err)
@@ -340,5 +340,61 @@ func TestReminderExpiresActiveSession(t *testing.T) {
 	}
 	if stored.CurrentMessageID != 77 {
 		t.Fatalf("expected new session message id 77, got %d", stored.CurrentMessageID)
+	}
+}
+
+func TestReminderSkipsRecentActiveSession(t *testing.T) {
+	testutil.SetupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+	training.ResetDefaultManager(time.Now)
+	training.ResetOverdueManager(time.Now)
+
+	now := time.Date(2025, 1, 2, 13, 30, 0, 0, time.UTC)
+	user := db.UserSettings{
+		UserID:              40,
+		PairsToSend:         1,
+		ReminderAfternoon:   true,
+		TimezoneOffsetHours: 0,
+	}
+	if err := db.DB.Create(&user).Error; err != nil {
+		t.Fatalf("failed to seed user settings: %v", err)
+	}
+	pair := db.WordPair{
+		UserID:   40,
+		Word1:    "a",
+		Word2:    "b",
+		SrsState: "review",
+		SrsDueAt: now.Add(-time.Hour),
+	}
+	if err := db.DB.Create(&pair).Error; err != nil {
+		t.Fatalf("failed to seed word pair: %v", err)
+	}
+
+	ids, err := json.Marshal([]uint{pair.ID})
+	if err != nil {
+		t.Fatalf("failed to marshal ids: %v", err)
+	}
+	if err := db.DB.Create(&db.TrainingSession{
+		ChatID:           40,
+		UserID:           40,
+		PairIDs:          datatypes.JSON(ids),
+		CurrentIndex:     0,
+		CurrentToken:     "tok",
+		CurrentMessageID: 55,
+		LastActivityAt:   now.Add(-activeSessionGrace + time.Minute),
+		ExpiresAt:        now.Add(time.Hour),
+	}).Error; err != nil {
+		t.Fatalf("failed to seed training session: %v", err)
+	}
+
+	client := newMockClient()
+	b := newTestTelegramBot(t, client)
+
+	handleUserReminder(context.Background(), b, user, now)
+
+	for _, req := range client.requests {
+		if strings.Contains(req.path, "editMessageText") || strings.Contains(req.path, "sendMessage") {
+			t.Fatalf("expected no reminder actions, got %s", req.path)
+		}
 	}
 }
