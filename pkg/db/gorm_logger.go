@@ -32,7 +32,7 @@ func newGormLogger(levelValue string) (gormlogger.Interface, error) {
 	}
 	return &gormSlogLogger{
 		slowThreshold:             defaultSlowThreshold,
-		ignoreRecordNotFoundError: false,
+		ignoreRecordNotFoundError: true,
 		logLevel:                  level,
 	}, levelErr
 }
