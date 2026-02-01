@@ -71,37 +71,8 @@ func HandleGameStart(ctx context.Context, b *bot.Bot, update *models.Update) {
 }
 
 func resumeGameSession(ctx context.Context, b *bot.Bot, chatID, userID int64, now time.Time) bool {
-	row, err := game.LoadGameSession(chatID, userID, now)
-	if err != nil {
-		logger.Error("failed to load game session state", "user_id", userID, "error", err)
-		return false
-	}
-	if row == nil {
-		return false
-	}
-
-	ids, err := game.SessionPairIDs(row)
-	if err != nil {
-		logger.Error("failed to decode game session pairs", "user_id", userID, "error", err)
-		return false
-	}
-	var pairs []db.WordPair
-	if len(ids) > 0 {
-		if err := db.DB.Where("id IN (?)", ids).Find(&pairs).Error; err != nil {
-			logger.Error("failed to load game pairs", "user_id", userID, "error", err)
-			return false
-		}
-	}
-	if len(pairs) == 0 {
-		if err := game.DeleteGameSession(chatID, userID); err != nil {
-			logger.Error("failed to delete empty game session", "user_id", userID, "error", err)
-		}
-		return false
-	}
-
-	session, err := game.DefaultManager.StartFromPersisted(row, pairs)
-	if err != nil {
-		logger.Error("failed to resume game session", "user_id", userID, "error", err)
+	session, _, ok := loadPersistedGameSession(chatID, userID, now)
+	if !ok {
 		return false
 	}
 
@@ -209,30 +180,11 @@ func HandleGameCallback(ctx context.Context, b *bot.Bot, update *models.Update) 
 
 func resumeGameSessionForCallback(chatID, userID int64, token string, messageID int) game.RevealResult {
 	now := time.Now().UTC()
-	sessionRow, err := game.LoadGameSession(chatID, userID, now)
-	if err != nil || sessionRow == nil {
+	_, row, ok := loadPersistedGameSession(chatID, userID, now)
+	if !ok {
 		return game.RevealResult{}
 	}
-	if sessionRow.CurrentToken != token || sessionRow.CurrentMessageID != messageID {
-		return game.RevealResult{}
-	}
-	ids, err := game.SessionPairIDs(sessionRow)
-	if err != nil {
-		return game.RevealResult{}
-	}
-	if len(ids) == 0 {
-		_ = game.DeleteGameSession(chatID, userID)
-		return game.RevealResult{}
-	}
-	var pairs []db.WordPair
-	if err := db.DB.Where("id IN (?)", ids).Find(&pairs).Error; err != nil {
-		return game.RevealResult{}
-	}
-	if len(pairs) == 0 {
-		_ = game.DeleteGameSession(chatID, userID)
-		return game.RevealResult{}
-	}
-	if _, err := game.DefaultManager.StartFromPersisted(sessionRow, pairs); err != nil {
+	if row.CurrentToken != token || row.CurrentMessageID != messageID {
 		return game.RevealResult{}
 	}
 	return game.DefaultManager.ResolveRevealAttempt(chatID, userID, token, messageID)
@@ -240,36 +192,58 @@ func resumeGameSessionForCallback(chatID, userID int64, token string, messageID 
 
 func resumeGameSessionForText(chatID, userID int64, replyMessageID int) bool {
 	now := time.Now().UTC()
-	sessionRow, err := game.LoadGameSession(chatID, userID, now)
-	if err != nil || sessionRow == nil {
+	_, row, ok := loadPersistedGameSession(chatID, userID, now)
+	if !ok {
 		return false
 	}
-	if sessionRow.CurrentMessageID == 0 {
+	if row.CurrentMessageID == 0 {
 		return false
 	}
-	if replyMessageID != 0 && sessionRow.CurrentMessageID != replyMessageID {
-		return false
-	}
-	ids, err := game.SessionPairIDs(sessionRow)
-	if err != nil {
-		return false
-	}
-	if len(ids) == 0 {
-		_ = game.DeleteGameSession(chatID, userID)
-		return false
-	}
-	var pairs []db.WordPair
-	if err := db.DB.Where("id IN (?)", ids).Find(&pairs).Error; err != nil {
-		return false
-	}
-	if len(pairs) == 0 {
-		_ = game.DeleteGameSession(chatID, userID)
-		return false
-	}
-	if _, err := game.DefaultManager.StartFromPersisted(sessionRow, pairs); err != nil {
+	if replyMessageID != 0 && row.CurrentMessageID != replyMessageID {
 		return false
 	}
 	return true
+}
+
+func loadPersistedGameSession(chatID, userID int64, now time.Time) (*game.GameSession, *db.GameSession, bool) {
+	row, err := game.LoadGameSession(chatID, userID, now)
+	if err != nil {
+		logger.Error("failed to load game session state", "user_id", userID, "error", err)
+		return nil, nil, false
+	}
+	if row == nil {
+		return nil, nil, false
+	}
+
+	ids, err := game.SessionPairIDs(row)
+	if err != nil {
+		logger.Error("failed to decode game session pairs", "user_id", userID, "error", err)
+		return nil, nil, false
+	}
+	if len(ids) == 0 {
+		if err := game.DeleteGameSession(chatID, userID); err != nil {
+			logger.Error("failed to delete empty game session", "user_id", userID, "error", err)
+		}
+		return nil, nil, false
+	}
+	var pairs []db.WordPair
+	if err := db.DB.Where("id IN (?)", ids).Find(&pairs).Error; err != nil {
+		logger.Error("failed to load game pairs", "user_id", userID, "error", err)
+		return nil, nil, false
+	}
+	if len(pairs) == 0 {
+		if err := game.DeleteGameSession(chatID, userID); err != nil {
+			logger.Error("failed to delete empty game session", "user_id", userID, "error", err)
+		}
+		return nil, nil, false
+	}
+
+	session, err := game.DefaultManager.StartFromPersisted(row, pairs)
+	if err != nil {
+		logger.Error("failed to resume game session", "user_id", userID, "error", err)
+		return nil, nil, false
+	}
+	return session, row, true
 }
 
 func handleGameTextAttempt(ctx context.Context, b *bot.Bot, update *models.Update) bool {

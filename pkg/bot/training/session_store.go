@@ -53,7 +53,3 @@ func DeleteTrainingSession(chatID, userID int64) error {
 	return db.DB.Where("chat_id = ? AND user_id = ?", chatID, userID).
 		Delete(&db.TrainingSession{}).Error
 }
-
-func ExpireTrainingSession(chatID, userID int64, _ string) error {
-	return DeleteTrainingSession(chatID, userID)
-}
