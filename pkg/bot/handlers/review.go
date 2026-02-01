@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -32,6 +33,9 @@ func HandleReview(ctx context.Context, b *bot.Bot, update *models.Update) {
 	}
 
 	now := time.Now().UTC()
+	if resumeSession(ctx, b, update.Message.Chat.ID, update.Message.From.ID, now) {
+		return
+	}
 	size := 10
 	var settings db.UserSettings
 	if err := db.DB.Where("user_id = ?", update.Message.From.ID).First(&settings).Error; err != nil {
@@ -84,6 +88,80 @@ func HandleReview(ctx context.Context, b *bot.Bot, update *models.Update) {
 	markTrainingEngaged(update.Message.From.ID, now)
 }
 
+func resumeSession(ctx context.Context, b *bot.Bot, chatID, userID int64, now time.Time) bool {
+	sessionRow, err := training.LoadTrainingSession(chatID, userID, now)
+	if err != nil {
+		logger.Error("failed to load persisted session", "user_id", userID, "error", err)
+		return false
+	}
+	if sessionRow == nil {
+		return false
+	}
+
+	pairs, err := loadPairsForSession(sessionRow)
+	if err != nil {
+		logger.Error("failed to load session pairs", "user_id", userID, "error", err)
+		return false
+	}
+
+	if len(pairs) == 0 {
+		if err := training.DeleteTrainingSession(chatID, userID); err != nil {
+			logger.Error("failed to delete empty session", "user_id", userID, "error", err)
+		}
+		return false
+	}
+
+	_, err = training.DefaultManager.StartFromPersisted(sessionRow, pairs)
+	if err != nil {
+		logger.Error("failed to resume training session", "user_id", userID, "error", err)
+		return false
+	}
+
+	card := training.DefaultManager.GetSession(chatID, userID).CurrentPair()
+	if card == nil {
+		return false
+	}
+
+	prompt := sessionRow.CurrentPromptText
+	if prompt == "" {
+		prompt = training.BuildPrompt(*card)
+	}
+	msg, err := b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:      chatID,
+		Text:        prompt,
+		ParseMode:   models.ParseModeMarkdown,
+		ReplyMarkup: training.BuildKeyboard(sessionRow.CurrentToken),
+	})
+	if err != nil {
+		logger.Error("failed to send resumed review prompt", "user_id", userID, "error", err)
+		return false
+	}
+	if session := training.DefaultManager.GetSession(chatID, userID); session != nil {
+		training.DefaultManager.Touch(chatID, userID)
+		training.DefaultManager.SetCurrentMessageID(session, msg.ID)
+		training.DefaultManager.SetCurrentPromptText(session, prompt)
+	}
+	return true
+}
+
+func loadPairsForSession(sessionRow *db.TrainingSession) ([]db.WordPair, error) {
+	if sessionRow == nil || len(sessionRow.PairIDs) == 0 {
+		return nil, nil
+	}
+	var ids []uint
+	if err := json.Unmarshal(sessionRow.PairIDs, &ids); err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var pairs []db.WordPair
+	if err := db.DB.Where("id IN (?)", ids).Find(&pairs).Error; err != nil {
+		return nil, err
+	}
+	return pairs, nil
+}
+
 func HandleReviewCallback(ctx context.Context, b *bot.Bot, update *models.Update) {
 	if update == nil || update.CallbackQuery == nil {
 		logger.Error("invalid update in HandleReviewCallback")
@@ -121,6 +199,9 @@ func HandleReviewCallback(ctx context.Context, b *bot.Bot, update *models.Update
 	}
 
 	snapshot, ok := training.DefaultManager.Snapshot(msg.Chat.ID, update.CallbackQuery.From.ID)
+	if !ok {
+		snapshot, ok = resumeReviewSessionForCallback(msg.Chat.ID, update.CallbackQuery.From.ID, token, msg.ID)
+	}
 	if !ok || snapshot.Token != token || snapshot.MessageID != msg.ID {
 		answerCallback("Not active")
 		return
@@ -181,6 +262,29 @@ func HandleReviewCallback(ctx context.Context, b *bot.Bot, update *models.Update
 		training.DefaultManager.SetCurrentMessageID(session, nextMsg.ID)
 		training.DefaultManager.SetCurrentPromptText(session, prompt)
 	}
+}
+
+func resumeReviewSessionForCallback(chatID, userID int64, token string, messageID int) (training.SessionSnapshot, bool) {
+	now := time.Now().UTC()
+	sessionRow, err := training.LoadTrainingSession(chatID, userID, now)
+	if err != nil || sessionRow == nil {
+		return training.SessionSnapshot{}, false
+	}
+	if sessionRow.CurrentToken != token || sessionRow.CurrentMessageID != messageID {
+		return training.SessionSnapshot{}, false
+	}
+	pairs, err := loadPairsForSession(sessionRow)
+	if err != nil {
+		return training.SessionSnapshot{}, false
+	}
+	if len(pairs) == 0 {
+		_ = training.DeleteTrainingSession(chatID, userID)
+		return training.SessionSnapshot{}, false
+	}
+	if _, err := training.DefaultManager.StartFromPersisted(sessionRow, pairs); err != nil {
+		return training.SessionSnapshot{}, false
+	}
+	return training.DefaultManager.Snapshot(chatID, userID)
 }
 
 func parseReviewCallback(data string) (string, training.Grade, bool) {

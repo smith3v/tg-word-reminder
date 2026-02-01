@@ -3,6 +3,7 @@ package reminders
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"mime"
@@ -17,6 +18,7 @@ import (
 	"github.com/smith3v/tg-word-reminder/pkg/db"
 	"github.com/smith3v/tg-word-reminder/pkg/internal/testutil"
 	"github.com/smith3v/tg-word-reminder/pkg/logger"
+	"gorm.io/datatypes"
 )
 
 type recordedRequest struct {
@@ -265,5 +267,134 @@ func TestOverduePromptTriggers(t *testing.T) {
 	}
 	if !strings.Contains(body, "t:grade") {
 		t.Fatalf("expected review grade buttons in keyboard, got %q", body)
+	}
+}
+
+func TestReminderExpiresActiveSession(t *testing.T) {
+	testutil.SetupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+	training.ResetDefaultManager(time.Now)
+	training.ResetOverdueManager(time.Now)
+
+	now := time.Date(2025, 1, 2, 13, 30, 0, 0, time.UTC)
+	user := db.UserSettings{
+		UserID:              30,
+		PairsToSend:         1,
+		ReminderAfternoon:   true,
+		TimezoneOffsetHours: 0,
+	}
+	if err := db.DB.Create(&user).Error; err != nil {
+		t.Fatalf("failed to seed user settings: %v", err)
+	}
+	pair := db.WordPair{
+		UserID:   30,
+		Word1:    "a",
+		Word2:    "b",
+		SrsState: "review",
+		SrsDueAt: now.Add(-time.Hour),
+	}
+	if err := db.DB.Create(&pair).Error; err != nil {
+		t.Fatalf("failed to seed word pair: %v", err)
+	}
+
+	ids, err := json.Marshal([]uint{pair.ID})
+	if err != nil {
+		t.Fatalf("failed to marshal ids: %v", err)
+	}
+	if err := db.DB.Create(&db.TrainingSession{
+		ChatID:           30,
+		UserID:           30,
+		PairIDs:          datatypes.JSON(ids),
+		CurrentIndex:     0,
+		CurrentToken:     "tok",
+		CurrentMessageID: 55,
+		LastActivityAt:   now.Add(-activeSessionGrace - time.Minute),
+		ExpiresAt:        now.Add(time.Hour),
+	}).Error; err != nil {
+		t.Fatalf("failed to seed training session: %v", err)
+	}
+
+	client := newMockClient()
+	client.response = `{"ok":true,"result":{"message_id":77}}`
+	b := newTestTelegramBot(t, client)
+
+	handleUserReminder(context.Background(), b, user, now)
+
+	edited := false
+	for _, req := range client.requests {
+		if strings.Contains(req.path, "editMessageText") && strings.Contains(string(req.body), "The session is expired\\.") {
+			if !strings.Contains(string(req.body), "||") {
+				t.Fatalf("expected expired message to include prompt text, got %q", string(req.body))
+			}
+			edited = true
+			break
+		}
+	}
+	if !edited {
+		t.Fatalf("expected expired session message to be edited")
+	}
+
+	var stored db.TrainingSession
+	if err := db.DB.Where("chat_id = ? AND user_id = ?", 30, 30).First(&stored).Error; err != nil {
+		t.Fatalf("failed to load training session: %v", err)
+	}
+	if stored.CurrentMessageID != 77 {
+		t.Fatalf("expected new session message id 77, got %d", stored.CurrentMessageID)
+	}
+}
+
+func TestReminderSkipsRecentActiveSession(t *testing.T) {
+	testutil.SetupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+	training.ResetDefaultManager(time.Now)
+	training.ResetOverdueManager(time.Now)
+
+	now := time.Date(2025, 1, 2, 13, 30, 0, 0, time.UTC)
+	user := db.UserSettings{
+		UserID:              40,
+		PairsToSend:         1,
+		ReminderAfternoon:   true,
+		TimezoneOffsetHours: 0,
+	}
+	if err := db.DB.Create(&user).Error; err != nil {
+		t.Fatalf("failed to seed user settings: %v", err)
+	}
+	pair := db.WordPair{
+		UserID:   40,
+		Word1:    "a",
+		Word2:    "b",
+		SrsState: "review",
+		SrsDueAt: now.Add(-time.Hour),
+	}
+	if err := db.DB.Create(&pair).Error; err != nil {
+		t.Fatalf("failed to seed word pair: %v", err)
+	}
+
+	ids, err := json.Marshal([]uint{pair.ID})
+	if err != nil {
+		t.Fatalf("failed to marshal ids: %v", err)
+	}
+	if err := db.DB.Create(&db.TrainingSession{
+		ChatID:           40,
+		UserID:           40,
+		PairIDs:          datatypes.JSON(ids),
+		CurrentIndex:     0,
+		CurrentToken:     "tok",
+		CurrentMessageID: 55,
+		LastActivityAt:   now.Add(-activeSessionGrace + time.Minute),
+		ExpiresAt:        now.Add(time.Hour),
+	}).Error; err != nil {
+		t.Fatalf("failed to seed training session: %v", err)
+	}
+
+	client := newMockClient()
+	b := newTestTelegramBot(t, client)
+
+	handleUserReminder(context.Background(), b, user, now)
+
+	for _, req := range client.requests {
+		if strings.Contains(req.path, "editMessageText") || strings.Contains(req.path, "sendMessage") {
+			t.Fatalf("expected no reminder actions, got %s", req.path)
+		}
 	}
 }

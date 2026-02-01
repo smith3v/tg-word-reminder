@@ -4,16 +4,46 @@ import (
 	"testing"
 	"time"
 
+	"gorm.io/datatypes"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
+
+type legacyGameSessionStatsTable struct {
+	ID          uint      `gorm:"primaryKey"`
+	UserID      int64     `gorm:"index"`
+	SessionDate time.Time `gorm:"type:date;not null"`
+	StartedAt   time.Time `gorm:"not null"`
+}
+
+func (legacyGameSessionStatsTable) TableName() string {
+	return "game_sessions"
+}
+
+type legacyGameSessionStateTable struct {
+	ID               uint           `gorm:"primaryKey"`
+	ChatID           int64          `gorm:"index"`
+	UserID           int64          `gorm:"index"`
+	PairIDs          datatypes.JSON `gorm:"not null"`
+	CurrentIndex     int            `gorm:"not null;default:0"`
+	CurrentToken     string         `gorm:"not null;default:''"`
+	CurrentMessageID int            `gorm:"not null;default:0"`
+	ScoreCorrect     int            `gorm:"not null;default:0"`
+	ScoreAttempted   int            `gorm:"not null;default:0"`
+	LastActivityAt   time.Time      `gorm:"not null"`
+	ExpiresAt        time.Time      `gorm:"not null"`
+}
+
+func (legacyGameSessionStateTable) TableName() string {
+	return "game_session_states"
+}
 
 func TestMigrateReminderSlots(t *testing.T) {
 	gdb, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("failed to open sqlite database: %v", err)
 	}
-	if err := gdb.AutoMigrate(&WordPair{}, &UserSettings{}, &GameSession{}); err != nil {
+	if err := gdb.AutoMigrate(&WordPair{}, &UserSettings{}, &GameSessionStatistics{}, &TrainingSession{}, &GameSession{}); err != nil {
 		t.Fatalf("failed to migrate schema: %v", err)
 	}
 
@@ -104,7 +134,7 @@ func TestMigrateNewRanks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open sqlite database: %v", err)
 	}
-	if err := gdb.AutoMigrate(&WordPair{}, &UserSettings{}, &GameSession{}); err != nil {
+	if err := gdb.AutoMigrate(&WordPair{}, &UserSettings{}, &GameSessionStatistics{}, &TrainingSession{}, &GameSession{}); err != nil {
 		t.Fatalf("failed to migrate schema: %v", err)
 	}
 
@@ -142,5 +172,59 @@ func TestMigrateNewRanks(t *testing.T) {
 	}
 	if updated.SrsNewRank == 0 {
 		t.Fatalf("expected srs_new_rank to be set, got %+v", updated)
+	}
+}
+
+func TestMigrateSessionTables(t *testing.T) {
+	gdb, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to open sqlite database: %v", err)
+	}
+	if err := gdb.AutoMigrate(&WordPair{}, &UserSettings{}, &GameSessionStatistics{}, &TrainingSession{}, &GameSession{}); err != nil {
+		t.Fatalf("failed to migrate schema: %v", err)
+	}
+
+	if !gdb.Migrator().HasTable(&TrainingSession{}) {
+		t.Fatalf("expected training_sessions table to exist")
+	}
+	if !gdb.Migrator().HasTable(&GameSession{}) {
+		t.Fatalf("expected game_sessions table to exist")
+	}
+}
+
+func TestMigrateGameSessionTablesRenamesLegacy(t *testing.T) {
+	gdb, err := gorm.Open(sqlite.Open("file:migrate_game_session_tables?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to open sqlite database: %v", err)
+	}
+	sqlDB, err := gdb.DB()
+	if err != nil {
+		t.Fatalf("failed to access underlying DB: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := sqlDB.Close(); err != nil {
+			t.Fatalf("failed to close database: %v", err)
+		}
+	})
+
+	if err := gdb.AutoMigrate(&legacyGameSessionStatsTable{}, &legacyGameSessionStateTable{}); err != nil {
+		t.Fatalf("failed to migrate legacy schema: %v", err)
+	}
+
+	if err := migrateGameSessionTables(gdb); err != nil {
+		t.Fatalf("migration failed: %v", err)
+	}
+
+	if gdb.Migrator().HasTable("game_session_states") {
+		t.Fatalf("expected game_session_states to be renamed")
+	}
+	if !gdb.Migrator().HasTable("game_sessions") {
+		t.Fatalf("expected game_sessions table to exist")
+	}
+	if !gdb.Migrator().HasTable("game_session_statistics") {
+		t.Fatalf("expected game_session_statistics table to exist")
+	}
+	if !gdb.Migrator().HasColumn("game_sessions", "pair_ids") {
+		t.Fatalf("expected game_sessions to contain pair_ids column")
 	}
 }

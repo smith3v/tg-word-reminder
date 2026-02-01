@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/smith3v/tg-word-reminder/pkg/bot/game"
+	"github.com/smith3v/tg-word-reminder/pkg/db"
 	"github.com/smith3v/tg-word-reminder/pkg/logger"
 )
 
@@ -26,6 +28,11 @@ func HandleGameStart(ctx context.Context, b *bot.Bot, update *models.Update) {
 			ChatID: update.Message.Chat.ID,
 			Text:   "The /game command works only in private chat.",
 		})
+		return
+	}
+
+	now := time.Now().UTC()
+	if resumeGameSession(ctx, b, update.Message.Chat.ID, update.Message.From.ID, now) {
 		return
 	}
 
@@ -61,6 +68,25 @@ func HandleGameStart(ctx context.Context, b *bot.Bot, update *models.Update) {
 		return
 	}
 	game.DefaultManager.SetCurrentMessageID(session, msg.ID)
+}
+
+func resumeGameSession(ctx context.Context, b *bot.Bot, chatID, userID int64, now time.Time) bool {
+	session, _, ok := loadPersistedGameSession(chatID, userID, now)
+	if !ok {
+		return false
+	}
+
+	if session.CurrentCard() == nil {
+		return false
+	}
+
+	msg, err := sendGamePrompt(ctx, b, chatID, session.CurrentCard(), session.CurrentToken(), true)
+	if err != nil {
+		logger.Error("failed to send resumed game prompt", "user_id", userID, "error", err)
+		return false
+	}
+	game.DefaultManager.SetCurrentMessageID(session, msg.ID)
+	return true
 }
 
 func HandleGameCallback(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -108,6 +134,9 @@ func HandleGameCallback(ctx context.Context, b *bot.Bot, update *models.Update) 
 	userID := update.CallbackQuery.From.ID
 	result := game.DefaultManager.ResolveRevealAttempt(chatID, userID, token, msg.ID)
 	if !result.Handled {
+		result = resumeGameSessionForCallback(chatID, userID, token, msg.ID)
+	}
+	if !result.Handled {
 		notice := result.Notice
 		if notice == "" {
 			notice = "Not active"
@@ -149,6 +178,74 @@ func HandleGameCallback(ctx context.Context, b *bot.Bot, update *models.Update) 
 	}
 }
 
+func resumeGameSessionForCallback(chatID, userID int64, token string, messageID int) game.RevealResult {
+	now := time.Now().UTC()
+	_, row, ok := loadPersistedGameSession(chatID, userID, now)
+	if !ok {
+		return game.RevealResult{}
+	}
+	if row.CurrentToken != token || row.CurrentMessageID != messageID {
+		return game.RevealResult{}
+	}
+	return game.DefaultManager.ResolveRevealAttempt(chatID, userID, token, messageID)
+}
+
+func resumeGameSessionForText(chatID, userID int64, replyMessageID int) bool {
+	now := time.Now().UTC()
+	_, row, ok := loadPersistedGameSession(chatID, userID, now)
+	if !ok {
+		return false
+	}
+	if row.CurrentMessageID == 0 {
+		return false
+	}
+	if replyMessageID != 0 && row.CurrentMessageID != replyMessageID {
+		return false
+	}
+	return true
+}
+
+func loadPersistedGameSession(chatID, userID int64, now time.Time) (*game.GameSession, *db.GameSession, bool) {
+	row, err := game.LoadGameSession(chatID, userID, now)
+	if err != nil {
+		logger.Error("failed to load game session state", "user_id", userID, "error", err)
+		return nil, nil, false
+	}
+	if row == nil {
+		return nil, nil, false
+	}
+
+	ids, err := game.SessionPairIDs(row)
+	if err != nil {
+		logger.Error("failed to decode game session pairs", "user_id", userID, "error", err)
+		return nil, nil, false
+	}
+	if len(ids) == 0 {
+		if err := game.DeleteGameSession(chatID, userID); err != nil {
+			logger.Error("failed to delete empty game session", "user_id", userID, "error", err)
+		}
+		return nil, nil, false
+	}
+	var pairs []db.WordPair
+	if err := db.DB.Where("id IN (?)", ids).Find(&pairs).Error; err != nil {
+		logger.Error("failed to load game pairs", "user_id", userID, "error", err)
+		return nil, nil, false
+	}
+	if len(pairs) == 0 {
+		if err := game.DeleteGameSession(chatID, userID); err != nil {
+			logger.Error("failed to delete empty game session", "user_id", userID, "error", err)
+		}
+		return nil, nil, false
+	}
+
+	session, err := game.DefaultManager.StartFromPersisted(row, pairs)
+	if err != nil {
+		logger.Error("failed to resume game session", "user_id", userID, "error", err)
+		return nil, nil, false
+	}
+	return session, row, true
+}
+
 func handleGameTextAttempt(ctx context.Context, b *bot.Bot, update *models.Update) bool {
 	if update == nil || update.Message == nil || update.Message.From == nil || update.Message.Chat.ID == 0 {
 		return false
@@ -169,7 +266,13 @@ func handleGameTextAttempt(ctx context.Context, b *bot.Bot, update *models.Updat
 		return session != nil
 	}
 	if session == nil {
-		return false
+		replyID := 0
+		if update.Message.ReplyToMessage != nil {
+			replyID = update.Message.ReplyToMessage.ID
+		}
+		if !resumeGameSessionForText(chatID, userID, replyID) {
+			return false
+		}
 	}
 
 	result := game.DefaultManager.ResolveTextAttempt(chatID, userID, text)

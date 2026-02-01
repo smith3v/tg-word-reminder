@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -12,12 +13,14 @@ import (
 	"github.com/smith3v/tg-word-reminder/pkg/db"
 	"github.com/smith3v/tg-word-reminder/pkg/internal/testutil"
 	"github.com/smith3v/tg-word-reminder/pkg/logger"
+	"gorm.io/datatypes"
 )
 
 func TestHandleReviewNoPairs(t *testing.T) {
 	testutil.SetupTestDB(t)
 	logger.SetLogLevel(logger.ERROR)
 	training.ResetDefaultManager(time.Now)
+	training.ResetOverdueManager(time.Now)
 
 	client := newMockClient()
 	b := newTestTelegramBot(t, client)
@@ -36,6 +39,7 @@ func TestHandleReviewCallbackUpdatesPair(t *testing.T) {
 	testutil.SetupTestDB(t)
 	logger.SetLogLevel(logger.ERROR)
 	training.ResetDefaultManager(time.Now)
+	training.ResetOverdueManager(time.Now)
 
 	if err := db.DB.Create(&db.UserSettings{
 		UserID:                 3002,
@@ -113,10 +117,58 @@ func TestHandleReviewCallbackUpdatesPair(t *testing.T) {
 	}
 }
 
+func TestHandleReviewCallbackResumesPersistedSession(t *testing.T) {
+	testutil.SetupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+	training.ResetDefaultManager(time.Now)
+	training.ResetOverdueManager(time.Now)
+
+	now := time.Now().UTC().Add(-time.Hour)
+	pair := db.WordPair{UserID: 3010, Word1: "flow", Word2: "de stroom", SrsState: "new", SrsDueAt: now}
+	if err := db.DB.Create(&pair).Error; err != nil {
+		t.Fatalf("failed to seed pair: %v", err)
+	}
+
+	prompt := training.BuildPrompt(pair)
+	ids, err := json.Marshal([]uint{pair.ID})
+	if err != nil {
+		t.Fatalf("failed to marshal ids: %v", err)
+	}
+	if err := db.DB.Create(&db.TrainingSession{
+		ChatID:            3010,
+		UserID:            3010,
+		PairIDs:           datatypes.JSON(ids),
+		CurrentIndex:      0,
+		CurrentToken:      "tok",
+		CurrentMessageID:  88,
+		CurrentPromptText: prompt,
+		LastActivityAt:    time.Now().UTC(),
+		ExpiresAt:         time.Now().UTC().Add(24 * time.Hour),
+	}).Error; err != nil {
+		t.Fatalf("failed to seed training session: %v", err)
+	}
+
+	training.ResetDefaultManager(time.Now)
+
+	client := newMockClient()
+	b := newTestTelegramBot(t, client)
+	callback := newTestCallbackUpdate("t:grade:tok:good", 3010, 3010, 88)
+	HandleReviewCallback(context.Background(), b, callback)
+
+	var updated db.WordPair
+	if err := db.DB.Where("id = ?", pair.ID).First(&updated).Error; err != nil {
+		t.Fatalf("failed to load updated pair: %v", err)
+	}
+	if updated.SrsState != "learning" || updated.SrsStep != 1 {
+		t.Fatalf("expected learning step 1 after good grade, got %+v", updated)
+	}
+}
+
 func TestHandleReviewMarksEngagementOnStart(t *testing.T) {
 	testutil.SetupTestDB(t)
 	logger.SetLogLevel(logger.ERROR)
 	training.ResetDefaultManager(time.Now)
+	training.ResetOverdueManager(time.Now)
 
 	if err := db.DB.Create(&db.UserSettings{
 		UserID:                 3003,
@@ -160,6 +212,7 @@ func TestHandleReviewCompletionMessage(t *testing.T) {
 	testutil.SetupTestDB(t)
 	logger.SetLogLevel(logger.ERROR)
 	training.ResetDefaultManager(time.Now)
+	training.ResetOverdueManager(time.Now)
 
 	if err := db.DB.Create(&db.WordPair{
 		UserID:   3004,
@@ -208,6 +261,7 @@ func TestHandleOverdueCallbackCatchUp(t *testing.T) {
 	testutil.SetupTestDB(t)
 	logger.SetLogLevel(logger.ERROR)
 	training.ResetDefaultManager(time.Now)
+	training.ResetOverdueManager(time.Now)
 
 	if err := db.DB.Create(&db.UserSettings{
 		UserID:      4001,
@@ -250,6 +304,7 @@ func TestHandleOverdueCallbackSnoozeEndsSession(t *testing.T) {
 	testutil.SetupTestDB(t)
 	logger.SetLogLevel(logger.ERROR)
 	training.ResetDefaultManager(time.Now)
+	training.ResetOverdueManager(time.Now)
 
 	if err := db.DB.Create(&db.UserSettings{
 		UserID:      4002,
@@ -283,5 +338,50 @@ func TestHandleOverdueCallbackSnoozeEndsSession(t *testing.T) {
 
 	if session := training.DefaultManager.GetSession(4002, 4002); session != nil {
 		t.Fatalf("expected session to end after snooze")
+	}
+}
+
+func TestHandleReviewResumesPersistedSession(t *testing.T) {
+	testutil.SetupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+	training.ResetDefaultManager(time.Now)
+	training.ResetOverdueManager(time.Now)
+
+	now := time.Date(2025, 1, 5, 10, 0, 0, 0, time.UTC)
+	pairs := []db.WordPair{
+		{UserID: 5001, Word1: "hola", Word2: "adios", SrsState: "new", SrsDueAt: now},
+		{UserID: 5001, Word1: "uno", Word2: "one", SrsState: "new", SrsDueAt: now},
+	}
+	if err := db.DB.Create(&pairs).Error; err != nil {
+		t.Fatalf("failed to seed pairs: %v", err)
+	}
+
+	session := training.DefaultManager.StartOrRestart(5001, 5001, pairs)
+	if session == nil || session.CurrentPair() == nil {
+		t.Fatalf("expected in-memory session")
+	}
+
+	client := newMockClient()
+	client.response = `{"ok":true,"result":{"message_id":77}}`
+	b := newTestTelegramBot(t, client)
+
+	update := newTestUpdate("/review", 5001)
+	update.Message.Chat.Type = models.ChatTypePrivate
+
+	HandleReview(context.Background(), b, update)
+
+	sendCount := 0
+	for _, req := range client.requests {
+		if strings.Contains(req.path, "sendMessage") {
+			sendCount++
+		}
+	}
+	if sendCount != 1 {
+		t.Fatalf("expected one sendMessage for resumed session, got %d", sendCount)
+	}
+
+	got := client.lastMessageText(t)
+	if !strings.Contains(got, "||") {
+		t.Fatalf("expected resumed prompt, got %q", got)
 	}
 }

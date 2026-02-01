@@ -133,6 +133,7 @@ func (m *GameManager) StartOrRestart(chatID, userID int64, vocabPairs []db.WordP
 		m.nextPromptLocked(session)
 	}
 	m.mu.Unlock()
+	persistGameSession(session)
 
 	return session
 }
@@ -229,6 +230,7 @@ func (m *GameManager) ResolveCorrect(session *GameSession) {
 	session.correctCount++
 	session.currentResolved = true
 	session.lastActivityAt = m.now()
+	persistGameSession(session)
 }
 
 // ResolveMissRequeue marks the prompt as missed and requeues it.
@@ -243,6 +245,7 @@ func (m *GameManager) ResolveMissRequeue(session *GameSession) {
 	session.currentResolved = true
 	session.lastActivityAt = m.now()
 	session.deck = append(session.deck, card)
+	persistGameSession(session)
 }
 
 // FinishStats builds the stats payload for a completed game session.
@@ -258,6 +261,7 @@ func (m *GameManager) SetCurrentMessageID(session *GameSession, messageID int) {
 		return
 	}
 	session.currentMessageID = messageID
+	persistGameSession(session)
 }
 
 // SetCurrentMessageIDForToken stores the message ID if the token matches the active prompt.
@@ -273,6 +277,7 @@ func (m *GameManager) SetCurrentMessageIDForToken(chatID, userID int64, token st
 		return
 	}
 	session.currentMessageID = messageID
+	persistGameSession(session)
 }
 
 // GetSession returns the current session for a user, if any.
@@ -337,10 +342,12 @@ func (m *GameManager) ResolveTextAttempt(chatID, userID int64, userText string) 
 		persistSessionEnd(session, session.lastActivityAt, "finished")
 		result.StatsText = formatStats(session)
 		delete(m.sessions, key)
+		deleteGameSession(chatID, userID)
 		return result
 	}
 
 	persistSessionCounts(session)
+	persistGameSession(session)
 
 	card := session.deck[0]
 	session.deck = session.deck[1:]
@@ -383,6 +390,7 @@ func (m *GameManager) ResolveRevealAttempt(chatID, userID int64, token string, m
 	session.deck = append(session.deck, *session.currentCard)
 
 	persistSessionCounts(session)
+	persistGameSession(session)
 
 	card := session.deck[0]
 	session.deck = session.deck[1:]
@@ -435,6 +443,7 @@ func (m *GameManager) collectInactive(now time.Time) []expiredSession {
 				statsText: formatStats(session),
 			})
 			delete(m.sessions, key)
+			deleteGameSession(session.chatID, session.userID)
 		}
 	}
 	return expired
@@ -568,7 +577,7 @@ func persistSessionStart(userID int64, startedAt time.Time) uint {
 	}
 	startedAt = startedAt.UTC()
 	sessionDate := time.Date(startedAt.Year(), startedAt.Month(), startedAt.Day(), 0, 0, 0, 0, time.UTC)
-	session := db.GameSession{
+	session := db.GameSessionStatistics{
 		UserID:      userID,
 		SessionDate: sessionDate,
 		StartedAt:   startedAt,
@@ -584,7 +593,7 @@ func persistSessionCounts(session *GameSession) {
 	if session == nil || session.sessionID == 0 || db.DB == nil {
 		return
 	}
-	if err := db.DB.Model(&db.GameSession{}).
+	if err := db.DB.Model(&db.GameSessionStatistics{}).
 		Where("id = ? AND ended_at IS NULL", session.sessionID).
 		Updates(map[string]interface{}{
 			"attempt_count": session.attemptCount,
@@ -600,7 +609,7 @@ func persistSessionEnd(session *GameSession, endedAt time.Time, reason string) {
 	}
 	endedAt = endedAt.UTC()
 	durationSeconds := durationFrom(session.startedAt, endedAt)
-	if err := db.DB.Model(&db.GameSession{}).
+	if err := db.DB.Model(&db.GameSessionStatistics{}).
 		Where("id = ? AND ended_at IS NULL", session.sessionID).
 		Updates(map[string]interface{}{
 			"ended_at":         endedAt,
