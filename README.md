@@ -125,6 +125,12 @@ Restore a backup:
 gunzip -c backups/<backup-file>.sql.gz | psql -h 127.0.0.1 -U tgwr -d tgwrdb
 ```
 
+Drop everything and restore:
+```bash
+docker compose --env-file .env.development exec -T db psql -U tgwr -d tgwrdb -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+gunzip -c backups/<backup-file>.sql.gz | docker compose --env-file .env.development exec -T db psql -U tgwr -d tgwrdb
+```
+
 ## Testing
 
 Run unit tests locally:
