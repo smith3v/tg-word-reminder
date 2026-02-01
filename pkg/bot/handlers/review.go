@@ -137,9 +137,9 @@ func resumeSession(ctx context.Context, b *bot.Bot, chatID, userID int64, now ti
 		return false
 	}
 	if session := training.DefaultManager.GetSession(chatID, userID); session != nil {
+		training.DefaultManager.Touch(chatID, userID)
 		training.DefaultManager.SetCurrentMessageID(session, msg.ID)
 		training.DefaultManager.SetCurrentPromptText(session, prompt)
-		training.DefaultManager.Touch(chatID, userID)
 	}
 	return true
 }

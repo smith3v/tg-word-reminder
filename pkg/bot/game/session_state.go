@@ -93,11 +93,19 @@ func (m *GameManager) StartFromPersisted(row *db.GameSession, pairs []db.WordPai
 		return nil, errors.New("current index out of range")
 	}
 
+	startedAt := row.LastActivityAt
+	if row.SessionID != 0 && db.DB != nil {
+		var stats db.GameSessionStatistics
+		if err := db.DB.First(&stats, row.SessionID).Error; err == nil {
+			startedAt = stats.StartedAt
+		}
+	}
+
 	session := &GameSession{
 		chatID:           row.ChatID,
 		userID:           row.UserID,
 		sessionID:        row.SessionID,
-		startedAt:        row.LastActivityAt,
+		startedAt:        startedAt,
 		lastActivityAt:   resumeAt,
 		correctCount:     row.ScoreCorrect,
 		attemptCount:     row.ScoreAttempted,
