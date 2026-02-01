@@ -19,11 +19,11 @@ type persistedCard struct {
 	Direction CardDirection `json:"direction"`
 }
 
-func LoadGameSessionState(chatID, userID int64, now time.Time) (*db.GameSessionState, error) {
+func LoadGameSession(chatID, userID int64, now time.Time) (*db.GameSession, error) {
 	if db.DB == nil {
 		return nil, nil
 	}
-	var session db.GameSessionState
+	var session db.GameSession
 	err := db.DB.
 		Where("chat_id = ? AND user_id = ? AND expires_at > ?", chatID, userID, now).
 		First(&session).Error
@@ -36,7 +36,7 @@ func LoadGameSessionState(chatID, userID int64, now time.Time) (*db.GameSessionS
 	return nil, err
 }
 
-func SessionPairIDs(row *db.GameSessionState) ([]uint, error) {
+func SessionPairIDs(row *db.GameSession) ([]uint, error) {
 	if row == nil || len(row.PairIDs) == 0 {
 		return nil, nil
 	}
@@ -59,7 +59,7 @@ func SessionPairIDs(row *db.GameSessionState) ([]uint, error) {
 	return ids, nil
 }
 
-func (m *GameManager) StartFromPersisted(row *db.GameSessionState, pairs []db.WordPair) (*GameSession, error) {
+func (m *GameManager) StartFromPersisted(row *db.GameSession, pairs []db.WordPair) (*GameSession, error) {
 	if row == nil {
 		return nil, errors.New("nil game session state")
 	}
@@ -112,25 +112,25 @@ func (m *GameManager) StartFromPersisted(row *db.GameSessionState, pairs []db.Wo
 	m.mu.Lock()
 	m.sessions[key] = session
 	m.mu.Unlock()
-	persistGameSessionState(session)
+	persistGameSession(session)
 	return session, nil
 }
 
-func persistGameSessionState(session *GameSession) {
+func persistGameSession(session *GameSession) {
 	if session == nil || db.DB == nil {
 		return
 	}
-	state, err := buildGameSessionState(session)
+	state, err := buildGameSession(session)
 	if err != nil {
 		logger.Error("failed to build game session state", "user_id", session.userID, "error", err)
 		return
 	}
-	if err := upsertGameSessionState(state); err != nil {
+	if err := upsertGameSession(state); err != nil {
 		logger.Error("failed to persist game session state", "user_id", session.userID, "error", err)
 	}
 }
 
-func buildGameSessionState(session *GameSession) (*db.GameSessionState, error) {
+func buildGameSession(session *GameSession) (*db.GameSession, error) {
 	if session == nil {
 		return nil, errors.New("nil session")
 	}
@@ -143,7 +143,7 @@ func buildGameSessionState(session *GameSession) (*db.GameSessionState, error) {
 	if lastActivity.IsZero() {
 		lastActivity = time.Now().UTC()
 	}
-	return &db.GameSessionState{
+	return &db.GameSession{
 		ChatID:           session.chatID,
 		UserID:           session.userID,
 		SessionID:        session.sessionID,
@@ -178,7 +178,7 @@ func buildPersistedDeck(session *GameSession) []persistedCard {
 	return deck
 }
 
-func upsertGameSessionState(state *db.GameSessionState) error {
+func upsertGameSession(state *db.GameSession) error {
 	if state == nil || db.DB == nil {
 		return nil
 	}
@@ -195,20 +195,20 @@ func upsertGameSessionState(state *db.GameSessionState) error {
 	}).Create(state).Error
 }
 
-func deleteGameSessionState(chatID, userID int64) {
+func deleteGameSession(chatID, userID int64) {
 	if db.DB == nil {
 		return
 	}
 	if err := db.DB.Where("chat_id = ? AND user_id = ?", chatID, userID).
-		Delete(&db.GameSessionState{}).Error; err != nil {
+		Delete(&db.GameSession{}).Error; err != nil {
 		logger.Error("failed to delete game session state", "user_id", userID, "error", err)
 	}
 }
 
-func DeleteGameSessionState(chatID, userID int64) error {
+func DeleteGameSession(chatID, userID int64) error {
 	if db.DB == nil {
 		return nil
 	}
 	return db.DB.Where("chat_id = ? AND user_id = ?", chatID, userID).
-		Delete(&db.GameSessionState{}).Error
+		Delete(&db.GameSession{}).Error
 }

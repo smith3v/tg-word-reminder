@@ -45,7 +45,7 @@ One row per active training session.
 Uniqueness:
 - Unique index on `(chat_id, user_id)`.
 
-### game_session_states
+### game_sessions
 One row per active game session.
 
 - `chat_id` (int64)
@@ -62,7 +62,7 @@ One row per active game session.
 - `current_message_id` (int)
   - Message ID of the currently displayed prompt.
 - `session_id` (uint)
-  - Foreign key to the game statistics row in `game_sessions`.
+  - Foreign key to the game statistics row in `game_session_statistics`.
 - `score_correct` (int)
   - Running correct answer count.
 - `score_attempted` (int)

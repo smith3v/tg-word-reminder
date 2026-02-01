@@ -71,7 +71,7 @@ func HandleGameStart(ctx context.Context, b *bot.Bot, update *models.Update) {
 }
 
 func resumeGameSession(ctx context.Context, b *bot.Bot, chatID, userID int64, now time.Time) bool {
-	row, err := game.LoadGameSessionState(chatID, userID, now)
+	row, err := game.LoadGameSession(chatID, userID, now)
 	if err != nil {
 		logger.Error("failed to load game session state", "user_id", userID, "error", err)
 		return false
@@ -93,7 +93,7 @@ func resumeGameSession(ctx context.Context, b *bot.Bot, chatID, userID int64, no
 		}
 	}
 	if len(pairs) == 0 {
-		if err := game.DeleteGameSessionState(chatID, userID); err != nil {
+		if err := game.DeleteGameSession(chatID, userID); err != nil {
 			logger.Error("failed to delete empty game session", "user_id", userID, "error", err)
 		}
 		return false

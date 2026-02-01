@@ -10,11 +10,11 @@ import (
 )
 
 func TestCleanupExpiredSessions(t *testing.T) {
-	gdb, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	gdb, err := gorm.Open(sqlite.Open("file:session_cleanup?mode=memory&cache=shared"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("failed to open sqlite database: %v", err)
 	}
-	if err := gdb.AutoMigrate(&TrainingSession{}, &GameSessionState{}); err != nil {
+	if err := gdb.AutoMigrate(&TrainingSession{}, &GameSession{}); err != nil {
 		t.Fatalf("failed to migrate schema: %v", err)
 	}
 	DB = gdb
@@ -47,14 +47,14 @@ func TestCleanupExpiredSessions(t *testing.T) {
 		LastActivityAt: now,
 		ExpiresAt:      now.Add(24 * time.Hour),
 	}
-	expiredGame := GameSessionState{
+	expiredGame := GameSession{
 		ChatID:         3,
 		UserID:         3,
 		PairIDs:        raw,
 		LastActivityAt: now.Add(-48 * time.Hour),
 		ExpiresAt:      now.Add(-24 * time.Hour),
 	}
-	activeGame := GameSessionState{
+	activeGame := GameSession{
 		ChatID:         4,
 		UserID:         4,
 		PairIDs:        raw,
@@ -92,7 +92,7 @@ func TestCleanupExpiredSessions(t *testing.T) {
 	}
 
 	var gameCount int64
-	if err := gdb.Model(&GameSessionState{}).Count(&gameCount).Error; err != nil {
+	if err := gdb.Model(&GameSession{}).Count(&gameCount).Error; err != nil {
 		t.Fatalf("failed to count game sessions: %v", err)
 	}
 	if gameCount != 1 {

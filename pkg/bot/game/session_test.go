@@ -174,7 +174,7 @@ func TestResolveCorrectPersistsState(t *testing.T) {
 
 	manager.ResolveCorrect(session)
 
-	var state db.GameSessionState
+	var state db.GameSession
 	if err := db.DB.Where("chat_id = ? AND user_id = ?", 11, 22).First(&state).Error; err != nil {
 		t.Fatalf("failed to load game session state: %v", err)
 	}

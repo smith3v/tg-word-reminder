@@ -21,7 +21,7 @@ func CleanupExpiredSessions(now time.Time) (int64, error) {
 	}
 	deleted += res.RowsAffected
 
-	res = DB.Where("expires_at <= ?", now).Delete(&GameSessionState{})
+	res = DB.Where("expires_at <= ?", now).Delete(&GameSession{})
 	if res.Error != nil {
 		return deleted, res.Error
 	}

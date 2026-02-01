@@ -2,7 +2,7 @@
 
 **Goal:** Persist training and game sessions in the database so users can resume after bot restarts, and reminder ticks can safely expire active sessions.
 
-**Architecture:** Add `training_sessions` and `game_sessions` tables keyed by `(chat_id, user_id)` with JSON arrays of pair IDs, index pointers, and activity timestamps. Update training/game session managers to read/write these rows on start/advance/end, and update reminder ticks to expire existing sessions and start fresh ones. Add a cleanup job to delete expired sessions.
+**Architecture:** Add `training_sessions` and `game_sessions` tables keyed by `(chat_id, user_id)` with JSON arrays of pair IDs, index pointers, and activity timestamps, and keep game stats in `game_session_statistics`. Update training/game session managers to read/write these rows on start/advance/end, and update reminder ticks to expire existing sessions and start fresh ones. Add a cleanup job to delete expired sessions.
 
 **Tech Stack:** Go 1.25, GORM (PostgreSQL/SQLite for tests), standard library `time`.
 

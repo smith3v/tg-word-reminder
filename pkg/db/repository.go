@@ -30,7 +30,11 @@ func InitDB(cfg config.DatabaseConfig) error {
 		logger.Error("failed to connect to database", "error", err)
 		return err
 	}
-	if err := DB.AutoMigrate(&WordPair{}, &UserSettings{}, &GameSessionStatistics{}, &TrainingSession{}, &GameSessionState{}); err != nil {
+	if err := migrateGameSessionTables(DB); err != nil {
+		logger.Error("failed to migrate game session tables", "error", err)
+		return err
+	}
+	if err := DB.AutoMigrate(&WordPair{}, &UserSettings{}, &GameSessionStatistics{}, &TrainingSession{}, &GameSession{}); err != nil {
 		logger.Error("failed to auto-migrate database", "error", err)
 		return err
 	}
@@ -104,4 +108,32 @@ SET srs_new_rank = 1
 WHERE srs_new_rank = 0
 `).Error
 	}
+}
+
+func migrateGameSessionTables(db *gorm.DB) error {
+	if db == nil {
+		return nil
+	}
+	migrator := db.Migrator()
+	renamedStats := false
+	if migrator.HasTable("game_sessions") {
+		hasSessionDate := migrator.HasColumn("game_sessions", "session_date")
+		hasPairIDs := migrator.HasColumn("game_sessions", "pair_ids")
+		if hasSessionDate && !hasPairIDs {
+			if !migrator.HasTable("game_session_statistics") {
+				if err := migrator.RenameTable("game_sessions", "game_session_statistics"); err != nil {
+					return err
+				}
+				renamedStats = true
+			}
+		}
+	}
+	if migrator.HasTable("game_session_states") {
+		if renamedStats || !migrator.HasTable("game_sessions") {
+			if err := migrator.RenameTable("game_session_states", "game_sessions"); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

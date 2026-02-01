@@ -53,7 +53,7 @@ type GameSessionStatistics struct {
 }
 
 func (GameSessionStatistics) TableName() string {
-	return "game_sessions"
+	return "game_session_statistics"
 }
 
 type TrainingSession struct {
@@ -71,7 +71,7 @@ type TrainingSession struct {
 	UpdatedAt         time.Time
 }
 
-type GameSessionState struct {
+type GameSession struct {
 	ID               uint           `gorm:"primaryKey"`
 	ChatID           int64          `gorm:"index;uniqueIndex:idx_game_session_state_user_chat"`
 	UserID           int64          `gorm:"index;uniqueIndex:idx_game_session_state_user_chat"`
@@ -88,6 +88,6 @@ type GameSessionState struct {
 	UpdatedAt        time.Time
 }
 
-func (GameSessionState) TableName() string {
-	return "game_session_states"
+func (GameSession) TableName() string {
+	return "game_sessions"
 }

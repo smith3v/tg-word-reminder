@@ -122,7 +122,7 @@ func TestHandleGameStartResumesPersistedSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to marshal deck: %v", err)
 	}
-	if err := db.DB.Create(&db.GameSessionState{
+	if err := db.DB.Create(&db.GameSession{
 		ChatID:           919,
 		UserID:           919,
 		PairIDs:          datatypes.JSON(raw),
