@@ -322,7 +322,7 @@ func TestReminderExpiresActiveSession(t *testing.T) {
 
 	edited := false
 	for _, req := range client.requests {
-		if strings.Contains(req.path, "editMessageText") && strings.Contains(string(req.body), "The session is expired.") {
+		if strings.Contains(req.path, "editMessageText") && strings.Contains(string(req.body), "The session is expired\\.") {
 			if !strings.Contains(string(req.body), "||") {
 				t.Fatalf("expected expired message to include prompt text, got %q", string(req.body))
 			}

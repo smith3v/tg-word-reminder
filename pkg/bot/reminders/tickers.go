@@ -180,6 +180,7 @@ func expireActiveSession(ctx context.Context, b *bot.Bot, user db.UserSettings, 
 }
 
 func buildExpiredSessionText(userID int64, sessionRow *db.TrainingSession) string {
+	expiredNotice := bot.EscapeMarkdown("The session is expired.")
 	base := ""
 	if snapshot, ok := training.DefaultManager.Snapshot(userID, userID); ok {
 		base = snapshot.PromptText
@@ -205,9 +206,9 @@ func buildExpiredSessionText(userID int64, sessionRow *db.TrainingSession) strin
 	}
 
 	if base == "" {
-		return "The session is expired."
+		return expiredNotice
 	}
-	return fmt.Sprintf("%s\n\nThe session is expired.", base)
+	return fmt.Sprintf("%s\n\n%s", base, expiredNotice)
 }
 
 func latestDueSlot(now time.Time, user db.UserSettings) (time.Time, bool) {
