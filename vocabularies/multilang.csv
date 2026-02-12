@@ -164,7 +164,8 @@ roof,крыша,het dak,tejado,Dach,toit
 then,затем,dan,entonces,dann,puis
 to thank,благодарить,danken,dar las gracias,zum Dank,pour remercier
 to dance,танцевать,dansen,para bailar,zu tanzen,danser
-that (het words),это (het слова),dat,que (het palabras),dass (het words),que (mots clés)
+that (het words),,dat,,,
+that,это (het слова),,que,dass,que
 the,сайт,de,el,die,les
 part,часть,het gedeelte,pieza,Teil,partie
 final,окончательный,definitief,final,endgültig,final
@@ -173,7 +174,8 @@ to think,думать,denken,pensar,zu denken,penser
 third,третий,derde,tercera,dritte,troisième
 detail,подробнее,het detail,detalle,Detail,détail
 door,дверь,de deur,puerta,Tür,porte
-this (de words),это (de слова),deze,esto (de palabras),dies (de Wörter),ceci (de mots)
+this (de words),,deze,,,
+this,это,,esto,dies,ceci
 the same,одинаковый,hetzelfde,lo mismo,derselbe,les mêmes
 nearby,поблизости,dichtbij,cerca de,in der Nähe,à proximité
 "close by, far away","рядом, далеко","dichtbij, ver weg","cerca, lejos","nah dran, weit weg","proche, lointain"
@@ -187,7 +189,7 @@ thing,вещь,het ding,cosa,Sache,chose
 directly,напрямую,direct,directamente,direkt,directement
 director,директор,de directeur,director,Direktor,directeur
 discussion,обсуждение,de discussie,debate,Diskussion,discussion
-this (het words),это (het слова),dit,esto (het palabras),dies (het words),ceci (mots clés)
+this (het words),,dit,,,
 daughter,дочь,de dochter,hija,Tochter,fille
 target,цель,het doel,objetivo,Ziel,cible
 "goal, objective","цель, задача",de doelstelling,"meta, objetivo","Ziel, Zielsetzung","but, objectif"
@@ -415,16 +417,17 @@ yes,да,ja,sí,ja,oui
 year,год,het jaar,año,Jahr,année
 unfortunately,к сожалению,jammer,por desgracia,leider,malheureusement
 jacket,куртка,de jas,chaqueta,Jacke,veste
-"you (single, informal, subject)","вы (одиночный, неформальный, подлежащий)",je,"tú (individual, informal, sujeto)","Sie (einzeln, informell, Subjekt)","vous (seul, informel, sujet)"
+"you (single, informal, subject)",,je,,,
 youth,молодежь,de jeugd,jóvenes,Jugend,la jeunesse
 yourself,себя,jezelf,usted mismo,selbst,toi-même
-"you (single, informal, stressed)","вы (одинокий, неформальный, с ударением)",jij,"tú (solo, informal, acentuado)","Sie (alleinstehend, formlos, betont)","vous (simple, informel, accentué)"
+"you (single, informal, stressed)",,jij,,,
+you,вы,,tú,Sie,vous
 young,молодой,jong,joven,junge,jeune
 "young, old","молодой, старый","jong, oud","joven, viejo","jung, alt","jeunes, vieux"
 young man,молодой человек,de jongeman,joven,junger Mann,jeune homme
-"you (informal, indirect object)","вы (неформальный, косвенный объект)",jou,"tú (informal, objeto indirecto)","du (informell, indirektes Objekt)","vous (informel, objet indirect)"
+"you (informal, indirect object)",,jou,,,
 "right, correct","правильно, правильно",juist,"correcto, correcto","richtig, richtig","juste, correct"
-you (plural),вы (множественное число),jullie,vosotros (plural),Sie (Plural),vous (pluriel)
+you (plural),,jullie,vosotros (plural),,
 june,июнь,juni,junio,juni,juin
 dress,платье,de jurk,vestido,Kleid,robe
 cheese,сыр,de kaas,queso,Käse,fromage
@@ -547,7 +550,8 @@ husband,муж,"man, echtgenoot",marido,Ehemann,mari
 way,путь,de manier,camino,Weg,manière
 market,рынок,de markt,mercado,Markt,marché
 material,материал,het materiaal,material,Material,matériel
-me (unstressed),я (без ударения),me,yo (sin acento),ich (ohne Betonung),moi (sans accent)
+me (unstressed),,me,,,
+me,я,,yo,ich,moi
 medical,медицинский,medisch,médico,medizinisch,médical
 to bring with,брать с собой,meebrengen,para llevar con,zum Mitbringen,à apporter avec
 to participate,участвовать,meedoen,participar,zur Teilnahme,participer
@@ -567,7 +571,7 @@ meter,счетчик,de meter,contador,Zähler,compteur
 method,метод,de methode,método,Methode,méthode
 Mrs.,Миссис.,de mevrouw,Sra.,Frau,Mme.
 myself,сам,mezelf,yo mismo,mich,moi-même
-me (stressed),я (подчеркнуто),mij,yo (estresado),ich (gestresst),moi (stressé)
+me (stressed),,mij,,,
 my,мой,mijn,mi,meine,mon
 environment,окружающая среда,het milieu,medio ambiente,Umwelt,l'environnement
 million,миллион,de miljoen,millones,Millionen,millions d'euros
@@ -913,7 +917,7 @@ in between,между,tussen,en medio,zwischendurch,entre les deux
 two,два,twee,dos,zwei,deux
 doubt,сомневаться,de twijfel,duda,Zweifel,doute
 typical,типичный,typisch,típico,typisch,typique
-"you (single, formal)","вы (единственное, формальное)",u,"tú (individual, formal)","Sie (alleinstehend, formell)","vous (seul, formel)"
+"you (single, formal)",,u,,,
 expression,выражение,de uitdrukking,expresión,Ausdruck,expression
 in the end,в конце концов,uiteindelijk,al final,am Ende,à la fin
 to go out,выходить,uitgaan,salir,Ausgehen,sortir
