@@ -25,6 +25,16 @@ type WordPair struct {
 	SrsNewRank        int     `gorm:"not null;default:0"`
 }
 
+type InitVocabulary struct {
+	ID uint `gorm:"primaryKey"`
+	EN string
+	RU string
+	NL string
+	ES string
+	DE string
+	FR string
+}
+
 type UserSettings struct {
 	ID                     uint  `gorm:"primaryKey"`
 	UserID                 int64 `gorm:"index"`
@@ -38,6 +48,17 @@ type UserSettings struct {
 	TrainingPaused         bool  `gorm:"not null;default:false"`
 	LastTrainingSentAt     *time.Time
 	LastTrainingEngagedAt  *time.Time
+}
+
+type OnboardingState struct {
+	ID                  uint   `gorm:"primaryKey"`
+	UserID              int64  `gorm:"uniqueIndex"`
+	Step                string `gorm:"not null;default:''"`
+	LearningLang        string `gorm:"not null;default:''"`
+	KnownLang           string `gorm:"not null;default:''"`
+	AwaitingResetPhrase bool   `gorm:"not null;default:false"`
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 type GameSessionStatistics struct {

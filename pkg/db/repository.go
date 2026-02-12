@@ -34,7 +34,15 @@ func InitDB(cfg config.DatabaseConfig) error {
 		logger.Error("failed to migrate game session tables", "error", err)
 		return err
 	}
-	if err := DB.AutoMigrate(&WordPair{}, &UserSettings{}, &GameSessionStatistics{}, &TrainingSession{}, &GameSession{}); err != nil {
+	if err := DB.AutoMigrate(
+		&WordPair{},
+		&InitVocabulary{},
+		&UserSettings{},
+		&OnboardingState{},
+		&GameSessionStatistics{},
+		&TrainingSession{},
+		&GameSession{},
+	); err != nil {
 		logger.Error("failed to auto-migrate database", "error", err)
 		return err
 	}

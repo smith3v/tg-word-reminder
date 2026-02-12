@@ -10,6 +10,7 @@ import (
 	"github.com/smith3v/tg-word-reminder/pkg/bot/feedback"
 	"github.com/smith3v/tg-word-reminder/pkg/bot/game"
 	"github.com/smith3v/tg-word-reminder/pkg/bot/handlers"
+	"github.com/smith3v/tg-word-reminder/pkg/bot/onboarding"
 	"github.com/smith3v/tg-word-reminder/pkg/bot/reminders"
 	"github.com/smith3v/tg-word-reminder/pkg/bot/training"
 	"github.com/smith3v/tg-word-reminder/pkg/config"
@@ -45,6 +46,9 @@ func main() {
 		logger.Error("failed to initialize database", "error", err)
 		os.Exit(1)
 	}
+	if err := onboarding.RefreshInitVocabularyFromConfig(); err != nil {
+		logger.Error("failed to refresh init vocabulary", "path", config.AppConfig.Onboarding.InitVocabularyPath, "error", err)
+	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
@@ -72,6 +76,7 @@ func main() {
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "g:r:", bot.MatchTypePrefix, handlers.HandleGameCallback)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "t:grade:", bot.MatchTypePrefix, handlers.HandleReviewCallback)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "t:overdue:", bot.MatchTypePrefix, handlers.HandleOverdueCallback)
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "o:", bot.MatchTypePrefix, handlers.HandleOnboardingCallback)
 
 	go reminders.StartPeriodicMessages(ctx, b)
 	go game.StartGameSweeper(ctx, botSender{b: b})

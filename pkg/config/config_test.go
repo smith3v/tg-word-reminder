@@ -30,6 +30,9 @@ func TestLoadConfigSuccess(t *testing.T) {
 			"enabled": true,
 			"admin_ids": [123456789, 987654321],
 			"timeout_minutes": 5
+		},
+		"onboarding": {
+			"init_vocabulary_path": "/app/vocabularies/multilang.csv"
 		}
 	}`
 
@@ -58,6 +61,9 @@ func TestLoadConfigSuccess(t *testing.T) {
 	}
 	if AppConfig.Feedback.TimeoutMinutes != 5 {
 		t.Errorf("expected feedback timeout minutes to be 5, got %d", AppConfig.Feedback.TimeoutMinutes)
+	}
+	if AppConfig.Onboarding.InitVocabularyPath != "/app/vocabularies/multilang.csv" {
+		t.Errorf("expected onboarding path to be set, got %q", AppConfig.Onboarding.InitVocabularyPath)
 	}
 }
 

@@ -2,15 +2,17 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/smith3v/tg-word-reminder/pkg/db"
 	"github.com/smith3v/tg-word-reminder/pkg/internal/testutil"
 	"github.com/smith3v/tg-word-reminder/pkg/logger"
+	"gorm.io/gorm"
 )
 
-func TestHandleStartCreatesSettings(t *testing.T) {
+func TestHandleStartBeginsWizardForNewUser(t *testing.T) {
 	testutil.SetupTestDB(t)
 	logger.SetLogLevel(logger.ERROR)
 
@@ -20,30 +22,28 @@ func TestHandleStartCreatesSettings(t *testing.T) {
 
 	HandleStart(context.Background(), b, update)
 
-	var settings db.UserSettings
-	if err := db.DB.Where("user_id = ?", 202).First(&settings).Error; err != nil {
-		t.Fatalf("failed to load settings: %v", err)
+	var state db.OnboardingState
+	if err := db.DB.Where("user_id = ?", 202).First(&state).Error; err != nil {
+		t.Fatalf("failed to load onboarding state: %v", err)
 	}
-	if settings.PairsToSend != 5 || settings.RemindersPerDay != 1 {
-		t.Fatalf("expected default settings, got %+v", settings)
+	if state.Step != "choose_learning" {
+		t.Fatalf("expected choose_learning step, got %+v", state)
 	}
-	if settings.ReminderMorning || settings.ReminderAfternoon || !settings.ReminderEvening {
-		t.Fatalf("expected evening reminders only, got %+v", settings)
-	}
-	if settings.TimezoneOffsetHours != 0 {
-		t.Fatalf("expected timezone offset 0, got %+v", settings)
-	}
-	if settings.MissedTrainingSessions != 0 || settings.TrainingPaused {
-		t.Fatalf("expected training engagement defaults, got %+v", settings)
+	if state.AwaitingResetPhrase {
+		t.Fatalf("did not expect reset phrase mode for new user")
 	}
 
+	var settings db.UserSettings
+	if err := db.DB.Where("user_id = ?", 202).First(&settings).Error; !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("expected settings to be absent before onboarding completion, got err=%v settings=%+v", err, settings)
+	}
 	got := client.lastMessageText(t)
-	if !strings.Contains(got, "Welcome") {
-		t.Fatalf("expected welcome message, got %q", got)
+	if !strings.Contains(got, "Choose the language you are learning") {
+		t.Fatalf("expected onboarding prompt, got %q", got)
 	}
 }
 
-func TestHandleStartKeepsExistingSettings(t *testing.T) {
+func TestHandleStartRequestsResetPhraseForExistingUser(t *testing.T) {
 	testutil.SetupTestDB(t)
 	logger.SetLogLevel(logger.ERROR)
 
@@ -66,17 +66,24 @@ func TestHandleStartKeepsExistingSettings(t *testing.T) {
 
 	HandleStart(context.Background(), b, update)
 
+	var state db.OnboardingState
+	if err := db.DB.Where("user_id = ?", 203).First(&state).Error; err != nil {
+		t.Fatalf("failed to load onboarding state: %v", err)
+	}
+	if !state.AwaitingResetPhrase {
+		t.Fatalf("expected awaiting reset phrase, got %+v", state)
+	}
+
 	var settings db.UserSettings
 	if err := db.DB.Where("user_id = ?", 203).First(&settings).Error; err != nil {
 		t.Fatalf("failed to load settings: %v", err)
 	}
-	if settings.PairsToSend != 3 || settings.RemindersPerDay != 4 {
+	if settings.PairsToSend != 3 {
 		t.Fatalf("expected settings to remain unchanged, got %+v", settings)
 	}
-	if !settings.ReminderMorning || !settings.ReminderAfternoon || !settings.ReminderEvening {
-		t.Fatalf("expected reminder slots to remain enabled, got %+v", settings)
-	}
-	if settings.TimezoneOffsetHours != 2 {
-		t.Fatalf("expected timezone offset to remain unchanged, got %+v", settings)
+
+	got := client.lastMessageText(t)
+	if !strings.Contains(got, "RESET MY DATA") {
+		t.Fatalf("expected reset phrase warning, got %q", got)
 	}
 }

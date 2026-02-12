@@ -24,6 +24,9 @@ func DefaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	if tryHandleFeedbackCapture(ctx, b, update) {
 		return
 	}
+	if tryHandleOnboardingResetPhrase(ctx, b, update) {
+		return
+	}
 
 	// Check if the message contains a document (file)
 	if update.Message.Document == nil {
