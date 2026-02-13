@@ -4,7 +4,9 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/smith3v/tg-word-reminder/pkg/bot/game"
 	"github.com/smith3v/tg-word-reminder/pkg/db"
 	"github.com/smith3v/tg-word-reminder/pkg/internal/testutil"
 	"github.com/smith3v/tg-word-reminder/pkg/logger"
@@ -101,5 +103,56 @@ func TestDefaultHandlerRequiresExactResetPhrase(t *testing.T) {
 	got := client.lastMessageText(t)
 	if !strings.Contains(got, "does not match") {
 		t.Fatalf("expected mismatch message, got %q", got)
+	}
+}
+
+func TestDefaultHandlerPrioritizesGameTextOverResetPhraseInterception(t *testing.T) {
+	testutil.SetupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+
+	game.ResetDefaultManager(func() time.Time { return time.Now().UTC() })
+	t.Cleanup(func() { game.ResetDefaultManager(nil) })
+
+	pair := db.WordPair{
+		UserID:   202,
+		Word1:    "hola",
+		Word2:    "hello",
+		SrsState: "new",
+		SrsDueAt: time.Now().UTC(),
+	}
+	if err := db.DB.Create(&pair).Error; err != nil {
+		t.Fatalf("failed to seed pair: %v", err)
+	}
+	if err := db.DB.Create(&db.OnboardingState{UserID: 202, AwaitingResetPhrase: true}).Error; err != nil {
+		t.Fatalf("failed to seed onboarding state: %v", err)
+	}
+
+	session := game.DefaultManager.StartOrRestart(202, 202, []db.WordPair{pair})
+	if session == nil || session.CurrentCard() == nil {
+		t.Fatalf("expected active game session")
+	}
+	game.DefaultManager.SetCurrentMessageID(session, 123)
+
+	client := newMockClient()
+	b := newTestTelegramBot(t, client)
+	update := newTestUpdate(session.CurrentCard().Expected, 202)
+
+	DefaultHandler(context.Background(), b, update)
+
+	for _, req := range client.requests {
+		if strings.Contains(string(req.body), "does not match") {
+			t.Fatalf("expected no reset mismatch message while game session is active")
+		}
+	}
+
+	sawEditMessage := false
+	for _, req := range client.requests {
+		if strings.HasSuffix(req.path, "/editMessageText") {
+			sawEditMessage = true
+			break
+		}
+	}
+	if !sawEditMessage {
+		t.Fatalf("expected game flow to edit prompt message")
 	}
 }
