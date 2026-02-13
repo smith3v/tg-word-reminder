@@ -6,6 +6,7 @@ Add a `/start` onboarding wizard that initializes a user vocabulary from a prede
 ## Decisions
 - `/start` always runs onboarding logic.
 - Existing users must type exact phrase `RESET MY DATA` before destructive re-initialization.
+- Existing users can cancel re-initialization with an inline `Keep my data` button.
 - Destructive reset deletes: `word_pairs`, `user_settings`, `training_sessions`, `game_sessions`.
 - Destructive reset does **not** delete `game_session_statistics`.
 - Data wipe must run in one DB transaction; rollback on any error.
@@ -96,9 +97,10 @@ Runtime startup behavior:
 
 ### Existing user (`/start`)
 1. Bot warns that re-initialization wipes training data.
-2. Bot asks to type exact phrase `RESET MY DATA`.
-3. If phrase mismatches: keep awaiting phrase and send retry message.
-4. If phrase matches:
+2. Bot asks to type exact phrase `RESET MY DATA` and shows an inline `Keep my data` button.
+3. If user taps `Keep my data`: clear reset-pending state, keep all existing data, and end the reset flow.
+4. If phrase mismatches: keep awaiting phrase and send retry message.
+5. If phrase matches:
 - run destructive wipe in one transaction
 - on success, start wizard from step 1
 - on failure, rollback and inform user; do not start wizard
@@ -116,6 +118,7 @@ For selected `(learning_lang, known_lang)`:
 
 ## Callback and State Handling
 - Use separate callback prefix for onboarding (e.g. `o:`), independent from settings (`s:`).
+- Include a dedicated onboarding callback action for canceling reset flow (`cancel_reset`).
 - Maintain language metadata in one ordered list:
 - DB column key (`en`, `ru`, ...)
 - display label (`🇬🇧 English`, etc.)
@@ -129,6 +132,7 @@ Docker update:
 
 ## Error Handling
 - Invalid callback/state mismatch: show safe recovery message and offer `/start` to restart flow.
+- Reset cancellation callback should only work when reset confirmation is pending; otherwise return a no-op/notice.
 - No eligible pairs for selected language pair: show message and let user pick different known language.
 - Config/path issues during refresh: log error and continue startup.
 - DB failure in wipe/provisioning transactions: rollback and inform user.
@@ -142,6 +146,7 @@ Docker update:
 - onboarding handler tests:
 - new user wizard path
 - existing user reset phrase required
+- existing user reset flow can be canceled with `Keep my data`
 - wrong phrase rejected
 - successful phrase triggers full transactional wipe
 - final provisioning creates expected pairs/settings
@@ -150,6 +155,7 @@ Docker update:
 ## Acceptance Criteria
 - `/start` on new users launches wizard and provisions vocabulary + defaults.
 - `/start` on existing users requires exact `RESET MY DATA` before wipe.
+- `/start` on existing users offers a `Keep my data` cancel action that exits reset flow without data changes.
 - Wipe is transactional and never partial.
 - Game statistics are preserved.
 - Init vocabulary comes from `db.InitVocabulary` table populated from configured CSV path.

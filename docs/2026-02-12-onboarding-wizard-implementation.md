@@ -195,7 +195,7 @@ Commit with the summary of the change as a commit message.
 **Prompt:**
 Refactor `pkg/bot/handlers/start.go` to use onboarding coordinator.
 - `/start` behavior:
-  - if existing user data => set onboarding state to awaiting phrase and ask for exact `RESET MY DATA`.
+  - if existing user data => set onboarding state to awaiting phrase, ask for exact `RESET MY DATA`, and include inline `Keep my data` cancel button.
   - else begin wizard and send learning-language keyboard.
 - Add handler support for phrase processing on plain text messages:
   - if user has awaiting reset phrase state and message text matches exactly `RESET MY DATA`:
@@ -225,6 +225,7 @@ Commit with the summary of the change as a commit message.
 Implement callback handling for wizard steps and finalize provisioning.
 - Create `pkg/bot/handlers/onboarding.go`:
   - `HandleOnboardingCallback` parsing `o:` callbacks.
+  - support `cancel_reset` callback that clears reset-pending state and confirms cancellation to the user.
   - step-aware transitions:
     - learning selected -> edit message to known-language keyboard
     - known selected -> edit message to confirmation view
