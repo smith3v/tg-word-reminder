@@ -54,6 +54,24 @@ func HandleOnboardingCallback(ctx context.Context, b *bot.Bot, update *models.Up
 		answerCallback("Failed")
 		return
 	}
+	if action.Kind == onboarding.ActionCancelReset {
+		if state == nil || !state.AwaitingResetPhrase {
+			answerCallback("Nothing to cancel")
+			return
+		}
+		if err := onboarding.ClearState(userID); err != nil {
+			logger.Error("failed to clear onboarding reset state", "user_id", userID, "error", err)
+			answerCallback("Failed")
+			return
+		}
+		if err := editOnboardingMessage(ctx, b, msg.Chat.ID, msg.ID, "Reset canceled. Your data is unchanged.", &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{}}); err != nil {
+			logger.Error("failed to edit reset cancellation message", "user_id", userID, "error", err)
+			answerCallback("Failed")
+			return
+		}
+		answerCallback("")
+		return
+	}
 	if state == nil || state.AwaitingResetPhrase {
 		answerCallback("Send /start")
 		return

@@ -37,11 +37,11 @@ func HandleStart(ctx context.Context, b *bot.Bot, update *models.Update) {
 			})
 			return
 		}
+		text, keyboard := onboarding.RenderResetWarningPrompt()
 		b.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID: update.Message.Chat.ID,
-			Text: "Re-initialization will wipe your vocabulary and training progress data (review sessions and game sessions).\n" +
-				"To continue, type this exact phrase:\n" +
-				onboarding.ResetPhrase,
+			ChatID:      update.Message.Chat.ID,
+			Text:        text,
+			ReplyMarkup: keyboard,
 		})
 		return
 	}

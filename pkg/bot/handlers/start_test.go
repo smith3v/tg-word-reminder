@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/smith3v/tg-word-reminder/pkg/bot/onboarding"
 	"github.com/smith3v/tg-word-reminder/pkg/db"
 	"github.com/smith3v/tg-word-reminder/pkg/internal/testutil"
 	"github.com/smith3v/tg-word-reminder/pkg/logger"
@@ -85,5 +86,10 @@ func TestHandleStartRequestsResetPhraseForExistingUser(t *testing.T) {
 	got := client.lastMessageText(t)
 	if !strings.Contains(got, "RESET MY DATA") {
 		t.Fatalf("expected reset phrase warning, got %q", got)
+	}
+
+	body := client.lastRequestBody(t)
+	if !strings.Contains(body, onboarding.BuildCancelResetCallback()) {
+		t.Fatalf("expected Keep my data callback, got %q", body)
 	}
 }

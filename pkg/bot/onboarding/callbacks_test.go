@@ -14,6 +14,7 @@ func TestParseCallbackData(t *testing.T) {
 		{name: "confirm", data: BuildConfirmCallback(), kind: ActionConfirm},
 		{name: "back learning", data: BuildBackLearningCallback(), kind: ActionBackLearning},
 		{name: "back known", data: BuildBackKnownCallback(), kind: ActionBackKnown},
+		{name: "cancel reset", data: BuildCancelResetCallback(), kind: ActionCancelReset},
 	}
 
 	for _, tc := range tests {

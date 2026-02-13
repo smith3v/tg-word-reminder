@@ -11,6 +11,19 @@ func RenderLearningLanguagePrompt() (string, *models.InlineKeyboardMarkup) {
 	return text, renderLanguageKeyboard(ActionSelectLearning, "", "")
 }
 
+func RenderResetWarningPrompt() (string, *models.InlineKeyboardMarkup) {
+	text := "Re-initialization will wipe your vocabulary and training progress data (review sessions and game sessions).\n" +
+		"To continue, type this exact phrase:\n" +
+		ResetPhrase
+	return text, &models.InlineKeyboardMarkup{
+		InlineKeyboard: [][]models.InlineKeyboardButton{
+			{
+				{Text: "Keep my data", CallbackData: BuildCancelResetCallback()},
+			},
+		},
+	}
+}
+
 func RenderKnownLanguagePrompt(learningCode string) (string, *models.InlineKeyboardMarkup) {
 	text := fmt.Sprintf(
 		"Learning language: %s\n\nChoose the language you already know (this will be word2).",

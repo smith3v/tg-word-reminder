@@ -18,6 +18,7 @@ const (
 	ActionConfirm        CallbackActionKind = "confirm"
 	ActionBackLearning   CallbackActionKind = "back_learning"
 	ActionBackKnown      CallbackActionKind = "back_known"
+	ActionCancelReset    CallbackActionKind = "cancel_reset"
 )
 
 type CallbackAction struct {
@@ -49,6 +50,10 @@ func BuildBackKnownCallback() string {
 	return CallbackPrefix + "back:k"
 }
 
+func BuildCancelResetCallback() string {
+	return CallbackPrefix + "cancel_reset"
+}
+
 func ParseCallbackData(data string) (CallbackAction, error) {
 	if data == "" || len(data) > MaxCallbackDataLen || !strings.HasPrefix(data, CallbackPrefix) {
 		return CallbackAction{}, errInvalidCallback
@@ -67,6 +72,8 @@ func ParseCallbackData(data string) (CallbackAction, error) {
 		return CallbackAction{Kind: ActionSelectKnown, Code: parts[1]}, nil
 	case len(parts) == 1 && parts[0] == "confirm":
 		return CallbackAction{Kind: ActionConfirm}, nil
+	case len(parts) == 1 && parts[0] == "cancel_reset":
+		return CallbackAction{Kind: ActionCancelReset}, nil
 	case len(parts) == 2 && parts[0] == "back" && parts[1] == "l":
 		return CallbackAction{Kind: ActionBackLearning}, nil
 	case len(parts) == 2 && parts[0] == "back" && parts[1] == "k":
