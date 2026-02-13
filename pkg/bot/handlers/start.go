@@ -5,9 +5,8 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"github.com/smith3v/tg-word-reminder/pkg/db"
+	"github.com/smith3v/tg-word-reminder/pkg/bot/onboarding"
 	"github.com/smith3v/tg-word-reminder/pkg/logger"
-	"gorm.io/gorm"
 )
 
 func HandleStart(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -20,49 +19,68 @@ func HandleStart(ctx context.Context, b *bot.Bot, update *models.Update) {
 		return
 	}
 
-	// Check if user settings already exist
-	var settings db.UserSettings
-	if err := db.DB.Where("user_id = ?", update.Message.From.ID).First(&settings).Error; err != nil {
-		if err == gorm.ErrRecordNotFound { // User settings do not exist
-			settings = db.UserSettings{
-				UserID:                 update.Message.From.ID,
-				PairsToSend:            5,
-				RemindersPerDay:        1,
-				ReminderMorning:        false,
-				ReminderAfternoon:      false,
-				ReminderEvening:        true,
-				TimezoneOffsetHours:    0,
-				MissedTrainingSessions: 0,
-				TrainingPaused:         false,
-			}
-			if err := db.DB.Create(&settings).Error; err != nil {
-				logger.Error("failed to create user settings", "user_id", update.Message.From.ID, "error", err)
-				b.SendMessage(ctx, &bot.SendMessageParams{
-					ChatID: update.Message.Chat.ID,
-					Text:   "Failed to create your settings. Please try again later.",
-				})
-				return
-			}
-		} else {
-			logger.Error("failed to check user settings", "error", err)
+	hasData, err := onboarding.HasExistingUserData(update.Message.From.ID)
+	if err != nil {
+		logger.Error("failed to check existing onboarding data", "user_id", update.Message.From.ID, "error", err)
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "Failed to start onboarding. Please try again later.",
+		})
+		return
+	}
+	hasInitData, err := onboarding.HasInitVocabularyData()
+	if err != nil {
+		logger.Error("failed to check init vocabulary availability", "user_id", update.Message.From.ID, "error", err)
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "Failed to start onboarding. Please try again later.",
+		})
+		return
+	}
+	if hasData {
+		if !hasInitData {
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: update.Message.Chat.ID,
-				Text:   "An error occurred while checking your settings. Please try again later.",
+				Text: "Built-in onboarding vocabulary is unavailable right now.\n" +
+					"Your existing data is unchanged. Please try again later.",
 			})
 			return
 		}
+		if err := onboarding.SetAwaitingResetPhrase(update.Message.From.ID); err != nil {
+			logger.Error("failed to set onboarding reset phrase state", "user_id", update.Message.From.ID, "error", err)
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: update.Message.Chat.ID,
+				Text:   "Failed to start onboarding. Please try again later.",
+			})
+			return
+		}
+		text, keyboard := onboarding.RenderResetWarningPrompt()
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:      update.Message.Chat.ID,
+			Text:        text,
+			ReplyMarkup: keyboard,
+		})
+		return
 	}
-
-	_, err := b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID: update.Message.Chat.ID,
-		Text: "Welcome\\!\n\n" +
-			"This bot helps you practice word pairs with short quizzes and reminders\\.\n" +
-			"Start by uploading your vocabulary as a CSV file \\(comma\\, tab\\, or semicolon separated\\)\\.\n" +
-			"See the [example format](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/vocabularies/example.csv) or the [Dutch\\-English sample](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/vocabularies/dutch-english.csv)\\.\n\n" +
-			"Use /settings to adjust reminder frequency and pair count\\, /getpair for a quick random pair\\, /export to download your vocabulary\\, or /game to start a quiz session\\.",
-		ParseMode: models.ParseModeMarkdown,
-	})
-	if err != nil {
-		logger.Error("failed to send welcome message", "user_id", update.Message.From.ID, "error", err)
+	if !hasInitData {
+		if err := onboarding.ClearState(update.Message.From.ID); err != nil {
+			logger.Error("failed to clear onboarding state while init vocabulary is unavailable", "user_id", update.Message.From.ID, "error", err)
+		}
+		if err := onboarding.EnsureDefaultSettings(update.Message.From.ID); err != nil {
+			logger.Error("failed to ensure default settings while init vocabulary is unavailable", "user_id", update.Message.From.ID, "error", err)
+		}
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text: "Built-in onboarding vocabulary is unavailable right now.\n" +
+				"You can still upload your own CSV file with word pairs to get started.",
+		})
+		return
+	}
+	if err := sendOnboardingLearningPrompt(ctx, b, update.Message.Chat.ID, update.Message.From.ID); err != nil {
+		logger.Error("failed to start onboarding wizard", "user_id", update.Message.From.ID, "error", err)
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "Failed to start onboarding. Please try again later.",
+		})
 	}
 }

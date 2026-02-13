@@ -28,6 +28,7 @@ WORKDIR /app
 
 # Copy the binary from the builder stage
 COPY --from=builder /app/tg-word-reminder .
+COPY --from=builder /app/vocabularies /app/vocabularies
 
 # Command to run the bot
 CMD ["/app/tg-word-reminder"]

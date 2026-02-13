@@ -8,10 +8,11 @@ import (
 )
 
 type Config struct {
-	Database DatabaseConfig `json:"database"`
-	Telegram TelegramConfig `json:"telegram"`
-	Logging  LoggingConfig  `json:"logging"`
-	Feedback FeedbackConfig `json:"feedback"`
+	Database   DatabaseConfig   `json:"database"`
+	Telegram   TelegramConfig   `json:"telegram"`
+	Logging    LoggingConfig    `json:"logging"`
+	Feedback   FeedbackConfig   `json:"feedback"`
+	Onboarding OnboardingConfig `json:"onboarding"`
 }
 
 type DatabaseConfig struct {
@@ -37,6 +38,10 @@ type FeedbackConfig struct {
 	Enabled        bool    `json:"enabled"`
 	AdminIDs       []int64 `json:"admin_ids"`
 	TimeoutMinutes int     `json:"timeout_minutes"`
+}
+
+type OnboardingConfig struct {
+	InitVocabularyPath string `json:"init_vocabulary_path"`
 }
 
 var AppConfig Config

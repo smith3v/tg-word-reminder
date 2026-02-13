@@ -1,9 +1,11 @@
 # Telegram Word Pair Reminder Bot
 
-This is a Telegram bot built using Go that allows users to upload word pairs and receive reminders with those pairs.
+This is a Telegram bot built using Go that helps users learn vocabulary with onboarding, quizzes, and spaced reminders.
 
 ## Features
 
+- Onboarding wizard that initializes personal vocabulary from a multilingual base dataset.
+- Safe re-initialization flow on `/start` for existing users with confirmation and cancel options.
 - Upload word pairs as a CSV file (`word1,word2` or tab/semicolon separated).
 - Clear uploaded word pairs.
 - Set the number of pairs to send in reminders.
@@ -14,6 +16,7 @@ This is a Telegram bot built using Go that allows users to upload word pairs and
 
 - `cmd/tg-word-reminder/main.go`: application entrypoint.
 - `pkg/bot/handlers`: Telegram command/update handlers.
+- `pkg/bot/onboarding`: onboarding flow, init vocabulary refresh, and provisioning logic.
 - `pkg/bot/game`: quiz session state and matching logic.
 - `pkg/bot/reminders`: reminder scheduling and delivery.
 - `pkg/bot/importexport`: CSV parsing and export helpers.
@@ -140,7 +143,15 @@ go test ./...
 
 ## Usage
 
-You can send a CSV file with word pairs to the bot to upload them. The first two columns are used as `word1` and `word2` (comma, tab, or semicolon separated). Please refer to the example file `vocabularies/example.csv` for the correct format.
+On first `/start`, the bot launches onboarding and asks for:
+1. the language you are learning
+2. the language you already know
+
+It then copies eligible pairs from the init vocabulary table to your personal vocabulary and enables default reminders (morning, afternoon, evening) with 5 cards per session.
+
+For existing users, `/start` asks for confirmation before re-initialization and allows canceling the flow.
+
+You can also send your own CSV file to upload/update personal pairs. The first two columns are used as source/target words (comma, tab, or semicolon separated). Refer to `vocabularies/example.csv` for format.
 
 - **Commands:**
   - `/start:` initialize your account.
@@ -185,6 +196,19 @@ Configure feedback delivery in `config.json` with admin IDs:
 }
 ```
 Admin IDs must be numeric Telegram user IDs. Use @Get_myidrobot (or similar) to find your numeric ID.
+
+## Onboarding
+
+Configure init vocabulary refresh in `config.json`:
+```json
+"onboarding": {
+  "init_vocabulary_path": "/app/vocabularies/multilang.csv"
+}
+```
+
+- If `init_vocabulary_path` is set, the bot attempts to refresh `init_vocabularies` on startup.
+- Refresh uses strict required columns: `en`, `ru`, `nl`, `es`, `de`, `fr`.
+- If refresh fails (missing/invalid file, invalid schema, empty data), the error is logged and bot startup continues.
 
 ## Contributing
 

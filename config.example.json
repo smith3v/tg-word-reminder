@@ -19,5 +19,8 @@
         "enabled": true,
         "admin_ids": [123456789],
         "timeout_minutes": 5
+    },
+    "onboarding": {
+        "init_vocabulary_path": "/app/vocabularies/multilang.csv"
     }
 }
