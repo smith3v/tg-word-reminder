@@ -17,6 +17,8 @@ import (
 
 var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
 
+var errEmptyInitVocabulary = errors.New("init vocabulary CSV is empty")
+
 func RefreshInitVocabularyFromConfig() error {
 	path := strings.TrimSpace(config.AppConfig.Onboarding.InitVocabularyPath)
 	if path == "" {
@@ -36,13 +38,13 @@ func RefreshInitVocabularyFromFile(path string) error {
 	if err != nil {
 		return err
 	}
+	if len(rows) == 0 {
+		return errEmptyInitVocabulary
+	}
 
 	return db.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&db.InitVocabulary{}).Error; err != nil {
 			return err
-		}
-		if len(rows) == 0 {
-			return nil
 		}
 		return tx.CreateInBatches(rows, 500).Error
 	})
@@ -61,7 +63,7 @@ func parseInitVocabularyCSV(reader io.Reader) ([]db.InitVocabulary, error) {
 	header, err := csvReader.Read()
 	if err != nil {
 		if errors.Is(err, io.EOF) {
-			return []db.InitVocabulary{}, nil
+			return nil, errEmptyInitVocabulary
 		}
 		return nil, err
 	}

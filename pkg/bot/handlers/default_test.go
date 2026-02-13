@@ -64,3 +64,42 @@ func TestDefaultHandlerConsumesResetPhraseFlow(t *testing.T) {
 		t.Fatalf("expected onboarding prompt after reset, got %q", got)
 	}
 }
+
+func TestDefaultHandlerRequiresExactResetPhrase(t *testing.T) {
+	testutil.SetupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+
+	if err := db.DB.Create(&db.WordPair{UserID: 201, Word1: "hola", Word2: "hello"}).Error; err != nil {
+		t.Fatalf("failed to seed pair: %v", err)
+	}
+	if err := db.DB.Create(&db.OnboardingState{UserID: 201, AwaitingResetPhrase: true}).Error; err != nil {
+		t.Fatalf("failed to seed onboarding state: %v", err)
+	}
+
+	client := newMockClient()
+	b := newTestTelegramBot(t, client)
+	update := newTestUpdate(" RESET MY DATA ", 201)
+
+	DefaultHandler(context.Background(), b, update)
+
+	var count int64
+	if err := db.DB.Model(&db.WordPair{}).Where("user_id = ?", 201).Count(&count).Error; err != nil {
+		t.Fatalf("failed to count pairs: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected pairs to remain when phrase is not exact, got %d", count)
+	}
+
+	var state db.OnboardingState
+	if err := db.DB.Where("user_id = ?", 201).First(&state).Error; err != nil {
+		t.Fatalf("expected onboarding state to remain: %v", err)
+	}
+	if !state.AwaitingResetPhrase {
+		t.Fatalf("expected still awaiting phrase, got %+v", state)
+	}
+
+	got := client.lastMessageText(t)
+	if !strings.Contains(got, "does not match") {
+		t.Fatalf("expected mismatch message, got %q", got)
+	}
+}

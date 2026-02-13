@@ -64,3 +64,34 @@ func TestRefreshInitVocabularyFromFileMissingRequiredColumn(t *testing.T) {
 		t.Fatalf("expected existing rows to remain, got %d", count)
 	}
 }
+
+func TestRefreshInitVocabularyFromFileRejectsEmptyCSVAndPreservesExistingRows(t *testing.T) {
+	testutil.SetupTestDB(t)
+
+	seed := db.InitVocabulary{EN: "a", RU: "b", NL: "c", ES: "d", DE: "e", FR: "f"}
+	if err := db.DB.Create(&seed).Error; err != nil {
+		t.Fatalf("failed to seed row: %v", err)
+	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "empty.csv")
+	if err := os.WriteFile(path, []byte(""), 0o600); err != nil {
+		t.Fatalf("failed to write csv: %v", err)
+	}
+
+	err := RefreshInitVocabularyFromFile(path)
+	if err == nil {
+		t.Fatalf("expected refresh to fail for empty csv")
+	}
+	if !strings.Contains(err.Error(), "empty") {
+		t.Fatalf("expected empty csv error, got %v", err)
+	}
+
+	var count int64
+	if err := db.DB.Model(&db.InitVocabulary{}).Count(&count).Error; err != nil {
+		t.Fatalf("failed to count rows: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected existing rows to remain, got %d", count)
+	}
+}

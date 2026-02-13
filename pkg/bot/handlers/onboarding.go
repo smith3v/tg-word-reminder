@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -188,7 +187,7 @@ func tryHandleOnboardingResetPhrase(ctx context.Context, b *bot.Bot, update *mod
 		return false
 	}
 
-	if strings.TrimSpace(update.Message.Text) != onboarding.ResetPhrase {
+	if update.Message.Text != onboarding.ResetPhrase {
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
 			Text:   "That phrase does not match. To continue, type the exact phrase:\n" + onboarding.ResetPhrase,
