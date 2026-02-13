@@ -39,6 +39,9 @@ func RenderConfirmationPrompt(learningCode, knownCode string, eligibleCount int)
 		LabelForLanguage(knownCode),
 		eligibleCount,
 	)
+	if eligibleCount == 0 {
+		text += "\n\nSorry, we don't have a training set for the chosen languages. Please try to choose another language combination."
+	}
 
 	rows := [][]models.InlineKeyboardButton{}
 	if eligibleCount > 0 {
