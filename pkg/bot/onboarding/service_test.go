@@ -87,6 +87,57 @@ func TestResetUserDataTxPreservesGameStatistics(t *testing.T) {
 	}
 }
 
+func TestHasInitVocabularyData(t *testing.T) {
+	testutil.SetupTestDB(t)
+
+	hasData, err := HasInitVocabularyData()
+	if err != nil {
+		t.Fatalf("failed to check init vocabulary data: %v", err)
+	}
+	if hasData {
+		t.Fatalf("expected no init vocabulary data")
+	}
+
+	if err := db.DB.Create(&db.InitVocabulary{EN: "hello", RU: "привет", NL: "hallo", ES: "hola", DE: "hallo", FR: "bonjour"}).Error; err != nil {
+		t.Fatalf("failed to seed init vocabulary: %v", err)
+	}
+
+	hasData, err = HasInitVocabularyData()
+	if err != nil {
+		t.Fatalf("failed to re-check init vocabulary data: %v", err)
+	}
+	if !hasData {
+		t.Fatalf("expected init vocabulary data to be present")
+	}
+}
+
+func TestEnsureDefaultSettings(t *testing.T) {
+	testutil.SetupTestDB(t)
+
+	if err := EnsureDefaultSettings(9001); err != nil {
+		t.Fatalf("failed to ensure settings: %v", err)
+	}
+
+	var settings db.UserSettings
+	if err := db.DB.Where("user_id = ?", 9001).First(&settings).Error; err != nil {
+		t.Fatalf("failed to load settings: %v", err)
+	}
+	if settings.PairsToSend != 5 || !settings.ReminderMorning || !settings.ReminderAfternoon || !settings.ReminderEvening {
+		t.Fatalf("unexpected ensured settings: %+v", settings)
+	}
+
+	if err := EnsureDefaultSettings(9001); err != nil {
+		t.Fatalf("failed to ensure settings second time: %v", err)
+	}
+	var count int64
+	if err := db.DB.Model(&db.UserSettings{}).Where("user_id = ?", 9001).Count(&count).Error; err != nil {
+		t.Fatalf("failed to count settings rows: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected one settings row, got %d", count)
+	}
+}
+
 func assertZeroRows(t *testing.T, model any, userID int64) {
 	t.Helper()
 	var count int64

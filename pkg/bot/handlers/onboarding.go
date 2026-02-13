@@ -72,6 +72,26 @@ func HandleOnboardingCallback(ctx context.Context, b *bot.Bot, update *models.Up
 		answerCallback("")
 		return
 	}
+	hasInitData, err := onboarding.HasInitVocabularyData()
+	if err != nil {
+		logger.Error("failed to check init vocabulary availability", "user_id", userID, "error", err)
+		answerCallback("Failed")
+		return
+	}
+	if !hasInitData {
+		if state != nil && !state.AwaitingResetPhrase {
+			if clearErr := onboarding.ClearState(userID); clearErr != nil {
+				logger.Error("failed to clear onboarding state while init vocabulary is unavailable", "user_id", userID, "error", clearErr)
+			}
+		}
+		if err := editOnboardingMessage(ctx, b, msg.Chat.ID, msg.ID, "Built-in onboarding vocabulary is unavailable right now.\nYou can still upload your own CSV file with word pairs to get started.", &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{}}); err != nil {
+			logger.Error("failed to edit onboarding unavailable message", "user_id", userID, "error", err)
+			answerCallback("Failed")
+			return
+		}
+		answerCallback("")
+		return
+	}
 	if state == nil || state.AwaitingResetPhrase {
 		answerCallback("Send /start")
 		return
@@ -209,6 +229,23 @@ func tryHandleOnboardingResetPhrase(ctx context.Context, b *bot.Bot, update *mod
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
 			Text:   "That phrase does not match. To continue, type the exact phrase:\n" + onboarding.ResetPhrase,
+		})
+		return true
+	}
+	hasInitData, err := onboarding.HasInitVocabularyData()
+	if err != nil {
+		logger.Error("failed to check init vocabulary availability for reset", "user_id", update.Message.From.ID, "error", err)
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "Failed to verify onboarding data availability. Please try again later.",
+		})
+		return true
+	}
+	if !hasInitData {
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text: "Built-in onboarding vocabulary is unavailable right now, so reset cannot continue.\n" +
+				"Your existing data is unchanged.",
 		})
 		return true
 	}

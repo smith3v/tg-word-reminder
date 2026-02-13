@@ -144,6 +144,36 @@ func HasExistingUserData(userID int64) (bool, error) {
 	return false, nil
 }
 
+func HasInitVocabularyData() (bool, error) {
+	var count int64
+	if err := db.DB.Model(&db.InitVocabulary{}).Limit(1).Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func EnsureDefaultSettings(userID int64) error {
+	var settings db.UserSettings
+	if err := db.DB.Where("user_id = ?", userID).First(&settings).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		settings = db.UserSettings{
+			UserID:                 userID,
+			PairsToSend:            5,
+			RemindersPerDay:        3,
+			ReminderMorning:        true,
+			ReminderAfternoon:      true,
+			ReminderEvening:        true,
+			TimezoneOffsetHours:    0,
+			MissedTrainingSessions: 0,
+			TrainingPaused:         false,
+		}
+		return db.DB.Create(&settings).Error
+	}
+	return nil
+}
+
 func CountEligiblePairs(learningCode, knownCode string) (int, error) {
 	if err := validateLanguagePair(learningCode, knownCode); err != nil {
 		return 0, err

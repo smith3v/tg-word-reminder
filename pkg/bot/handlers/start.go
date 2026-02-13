@@ -28,7 +28,24 @@ func HandleStart(ctx context.Context, b *bot.Bot, update *models.Update) {
 		})
 		return
 	}
+	hasInitData, err := onboarding.HasInitVocabularyData()
+	if err != nil {
+		logger.Error("failed to check init vocabulary availability", "user_id", update.Message.From.ID, "error", err)
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "Failed to start onboarding. Please try again later.",
+		})
+		return
+	}
 	if hasData {
+		if !hasInitData {
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: update.Message.Chat.ID,
+				Text: "Built-in onboarding vocabulary is unavailable right now.\n" +
+					"Your existing data is unchanged. Please try again later.",
+			})
+			return
+		}
 		if err := onboarding.SetAwaitingResetPhrase(update.Message.From.ID); err != nil {
 			logger.Error("failed to set onboarding reset phrase state", "user_id", update.Message.From.ID, "error", err)
 			b.SendMessage(ctx, &bot.SendMessageParams{
@@ -42,6 +59,20 @@ func HandleStart(ctx context.Context, b *bot.Bot, update *models.Update) {
 			ChatID:      update.Message.Chat.ID,
 			Text:        text,
 			ReplyMarkup: keyboard,
+		})
+		return
+	}
+	if !hasInitData {
+		if err := onboarding.ClearState(update.Message.From.ID); err != nil {
+			logger.Error("failed to clear onboarding state while init vocabulary is unavailable", "user_id", update.Message.From.ID, "error", err)
+		}
+		if err := onboarding.EnsureDefaultSettings(update.Message.From.ID); err != nil {
+			logger.Error("failed to ensure default settings while init vocabulary is unavailable", "user_id", update.Message.From.ID, "error", err)
+		}
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text: "Built-in onboarding vocabulary is unavailable right now.\n" +
+				"You can still upload your own CSV file with word pairs to get started.",
 		})
 		return
 	}
