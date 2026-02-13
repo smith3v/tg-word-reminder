@@ -7,7 +7,7 @@ import (
 )
 
 func RenderLearningLanguagePrompt() (string, *models.InlineKeyboardMarkup) {
-	text := "Welcome!\n\nChoose the language you are learning (this will be word1)."
+	text := "Welcome!\n\nChoose the language you are learning."
 	return text, renderLanguageKeyboard(ActionSelectLearning, "", "")
 }
 
@@ -26,7 +26,7 @@ func RenderResetWarningPrompt() (string, *models.InlineKeyboardMarkup) {
 
 func RenderKnownLanguagePrompt(learningCode string) (string, *models.InlineKeyboardMarkup) {
 	text := fmt.Sprintf(
-		"Learning language: %s\n\nChoose the language you already know (this will be word2).",
+		"Learning language: %s\n\nChoose the language you already know.",
 		LabelForLanguage(learningCode),
 	)
 	return text, renderLanguageKeyboard(ActionSelectKnown, learningCode, BuildBackLearningCallback())
