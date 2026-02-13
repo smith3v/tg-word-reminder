@@ -21,7 +21,7 @@ func RenderKnownLanguagePrompt(learningCode string) (string, *models.InlineKeybo
 
 func RenderConfirmationPrompt(learningCode, knownCode string, eligibleCount int) (string, *models.InlineKeyboardMarkup) {
 	text := fmt.Sprintf(
-		"Initialize vocabulary\n\nLearning language (word1): %s\nKnown language (word2): %s\nEligible pairs: %d",
+		"Initialize vocabulary\n\nLearning language: %s\nKnown language: %s\nEligible pairs: %d",
 		LabelForLanguage(learningCode),
 		LabelForLanguage(knownCode),
 		eligibleCount,
