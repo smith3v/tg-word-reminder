@@ -161,7 +161,6 @@ func EnsureDefaultSettings(userID int64) error {
 		settings = db.UserSettings{
 			UserID:                 userID,
 			PairsToSend:            5,
-			RemindersPerDay:        3,
 			ReminderMorning:        true,
 			ReminderAfternoon:      true,
 			ReminderEvening:        true,
@@ -268,7 +267,6 @@ func ProvisionUserVocabularyAndDefaults(userID int64, learningCode, knownCode st
 		settings := db.UserSettings{
 			UserID:                 userID,
 			PairsToSend:            5,
-			RemindersPerDay:        3,
 			ReminderMorning:        true,
 			ReminderAfternoon:      true,
 			ReminderEvening:        true,

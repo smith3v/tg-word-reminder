@@ -13,7 +13,7 @@ import (
 )
 
 func TestApplyActionNavigation(t *testing.T) {
-	settings := db.UserSettings{UserID: 1, PairsToSend: 2, RemindersPerDay: 3}
+	settings := db.UserSettings{UserID: 1, PairsToSend: 2}
 
 	next, screen, changed, err := ApplyAction(settings, ui.Action{Screen: ui.ScreenHome, Op: ui.OpNone})
 	if err != nil {
@@ -49,7 +49,7 @@ func TestApplyActionSlotsNavigation(t *testing.T) {
 }
 
 func TestApplyActionPairsIncrement(t *testing.T) {
-	settings := db.UserSettings{UserID: 1, PairsToSend: 2, RemindersPerDay: 3}
+	settings := db.UserSettings{UserID: 1, PairsToSend: 2}
 
 	next, screen, changed, err := ApplyAction(settings, ui.Action{Screen: ui.ScreenPairs, Op: ui.OpInc})
 	if err != nil {
@@ -67,7 +67,7 @@ func TestApplyActionPairsIncrement(t *testing.T) {
 }
 
 func TestApplyActionPairsSetPreset(t *testing.T) {
-	settings := db.UserSettings{UserID: 1, PairsToSend: 2, RemindersPerDay: 3}
+	settings := db.UserSettings{UserID: 1, PairsToSend: 2}
 
 	next, screen, changed, err := ApplyAction(settings, ui.Action{Screen: ui.ScreenPairs, Op: ui.OpSet, Value: 5})
 	if err != nil {
@@ -103,7 +103,7 @@ func TestApplyActionTimezoneSetPreset(t *testing.T) {
 }
 
 func TestApplyActionPairsBelowMin(t *testing.T) {
-	settings := db.UserSettings{UserID: 1, PairsToSend: MinPairsPerReminder, RemindersPerDay: 3}
+	settings := db.UserSettings{UserID: 1, PairsToSend: MinPairsPerReminder}
 
 	_, screen, changed, err := ApplyAction(settings, ui.Action{Screen: ui.ScreenPairs, Op: ui.OpDec})
 	if !errors.Is(err, ErrBelowMin) {
@@ -118,7 +118,7 @@ func TestApplyActionPairsBelowMin(t *testing.T) {
 }
 
 func TestApplyActionPairsSetAboveMax(t *testing.T) {
-	settings := db.UserSettings{UserID: 1, PairsToSend: 2, RemindersPerDay: 3}
+	settings := db.UserSettings{UserID: 1, PairsToSend: 2}
 
 	_, screen, changed, err := ApplyAction(settings, ui.Action{Screen: ui.ScreenPairs, Op: ui.OpSet, Value: MaxPairsPerReminder + 1})
 	if !errors.Is(err, ErrAboveMax) {
@@ -166,7 +166,7 @@ func TestApplyActionSlotsToggle(t *testing.T) {
 }
 
 func TestApplyActionClose(t *testing.T) {
-	settings := db.UserSettings{UserID: 1, PairsToSend: 2, RemindersPerDay: 3}
+	settings := db.UserSettings{UserID: 1, PairsToSend: 2}
 
 	_, screen, changed, err := ApplyAction(settings, ui.Action{Screen: ui.ScreenClose, Op: ui.OpNone})
 	if err != nil {
@@ -181,7 +181,7 @@ func TestApplyActionClose(t *testing.T) {
 }
 
 func TestApplyActionInvalid(t *testing.T) {
-	settings := db.UserSettings{UserID: 1, PairsToSend: 2, RemindersPerDay: 3}
+	settings := db.UserSettings{UserID: 1, PairsToSend: 2}
 
 	_, _, _, err := ApplyAction(settings, ui.Action{Screen: ui.ScreenHome, Op: ui.OpInc})
 	if !errors.Is(err, ErrInvalidAction) {
@@ -209,7 +209,7 @@ func TestHandleSettingsSendsHome(t *testing.T) {
 	testutil.SetupTestDB(t)
 	logger.SetLogLevel(logger.ERROR)
 
-	seed := db.UserSettings{UserID: 301, PairsToSend: 2, RemindersPerDay: 3, ReminderEvening: true, TimezoneOffsetHours: 0}
+	seed := db.UserSettings{UserID: 301, PairsToSend: 2, ReminderEvening: true, TimezoneOffsetHours: 0}
 	if err := db.DB.Create(&seed).Error; err != nil {
 		t.Fatalf("failed to seed settings: %v", err)
 	}
@@ -236,7 +236,7 @@ func TestHandleSettingsCallbackUpdatesPairs(t *testing.T) {
 	testutil.SetupTestDB(t)
 	logger.SetLogLevel(logger.ERROR)
 
-	seed := db.UserSettings{UserID: 302, PairsToSend: 1, RemindersPerDay: 1}
+	seed := db.UserSettings{UserID: 302, PairsToSend: 1}
 	if err := db.DB.Create(&seed).Error; err != nil {
 		t.Fatalf("failed to seed settings: %v", err)
 	}
