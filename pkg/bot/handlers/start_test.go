@@ -68,7 +68,6 @@ func TestHandleStartRequestsResetPhraseForExistingUser(t *testing.T) {
 	seed := db.UserSettings{
 		UserID:              203,
 		PairsToSend:         3,
-		RemindersPerDay:     4,
 		ReminderMorning:     true,
 		ReminderAfternoon:   true,
 		ReminderEvening:     true,
@@ -147,7 +146,6 @@ func TestHandleStartDoesNotEnterResetFlowWhenInitVocabularyMissingForExistingUse
 	seed := db.UserSettings{
 		UserID:              205,
 		PairsToSend:         3,
-		RemindersPerDay:     4,
 		ReminderMorning:     true,
 		ReminderAfternoon:   true,
 		ReminderEvening:     true,

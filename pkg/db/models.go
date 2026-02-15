@@ -39,7 +39,6 @@ type UserSettings struct {
 	ID                     uint  `gorm:"primaryKey"`
 	UserID                 int64 `gorm:"index"`
 	PairsToSend            int   `gorm:"default:1"` // Default to sending 1 pair
-	RemindersPerDay        int   `gorm:"default:1"` // Deprecated: retained for migration during development
 	ReminderMorning        bool  `gorm:"not null;default:false"`
 	ReminderAfternoon      bool  `gorm:"not null;default:false"`
 	ReminderEvening        bool  `gorm:"not null;default:false"`
