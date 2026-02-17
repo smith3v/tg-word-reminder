@@ -51,7 +51,7 @@ func TestHandleGameStartWithEmptyVocabulary(t *testing.T) {
 	HandleGameStart(context.Background(), b, update)
 
 	got := client.lastMessageText(t)
-	if !strings.Contains(got, "You have no word pairs saved") {
+	if !strings.Contains(got, "You have no cards saved") {
 		t.Fatalf("expected empty vocabulary message, got %q", got)
 	}
 }

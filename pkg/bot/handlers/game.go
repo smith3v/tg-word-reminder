@@ -48,7 +48,7 @@ func HandleGameStart(ctx context.Context, b *bot.Bot, update *models.Update) {
 	if len(pairs) == 0 {
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
-			Text:   "You have no word pairs saved. Please upload some word pairs first.",
+			Text:   "You have no cards saved. Please upload some cards first.",
 		})
 		return
 	}
@@ -57,7 +57,7 @@ func HandleGameStart(ctx context.Context, b *bot.Bot, update *models.Update) {
 	if session.CurrentCard() == nil {
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
-			Text:   "No word pairs are available to start a game.",
+			Text:   "No cards are available to start a game.",
 		})
 		return
 	}

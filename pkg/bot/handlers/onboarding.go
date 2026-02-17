@@ -84,7 +84,7 @@ func HandleOnboardingCallback(ctx context.Context, b *bot.Bot, update *models.Up
 				logger.Error("failed to clear onboarding state while init vocabulary is unavailable", "user_id", userID, "error", clearErr)
 			}
 		}
-		if err := editOnboardingMessage(ctx, b, msg.Chat.ID, msg.ID, "Built-in onboarding vocabulary is unavailable right now.\nYou can still upload your own CSV file with word pairs to get started.", &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{}}); err != nil {
+		if err := editOnboardingMessage(ctx, b, msg.Chat.ID, msg.ID, "Built-in onboarding vocabulary is unavailable right now.\nYou can still upload your own CSV file with cards to get started.", &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{}}); err != nil {
 			logger.Error("failed to edit onboarding unavailable message", "user_id", userID, "error", err)
 			answerCallback("Failed")
 			return
@@ -164,7 +164,7 @@ func HandleOnboardingCallback(ctx context.Context, b *bot.Bot, update *models.Up
 		inserted, err := onboarding.ProvisionUserVocabularyAndDefaults(userID, state.LearningLang, state.KnownLang)
 		if err != nil {
 			if errors.Is(err, onboarding.ErrNoEligiblePairs) {
-				answerCallback("No pairs for this language pair")
+				answerCallback("No cards for this language combination")
 				if nextState, backErr := onboarding.BackToKnown(userID); backErr == nil {
 					text, keyboard := onboarding.RenderKnownLanguagePrompt(nextState.LearningLang)
 					_ = editOnboardingMessage(ctx, b, msg.Chat.ID, msg.ID, text, keyboard)
@@ -181,7 +181,7 @@ func HandleOnboardingCallback(ctx context.Context, b *bot.Bot, update *models.Up
 		}
 
 		completion := fmt.Sprintf(
-			"Imported %d pairs: %s -> %s\n\nDefault settings enabled:\n- 3 sessions: morning, afternoon, evening\n- 5 words per session\n\nUse /review to start training, /game for quiz mode, or /settings to adjust preferences.",
+			"Imported %d cards: %s -> %s\n\nDuring /review, rate how easy it was to recall each word:\n- Again: could not recall it\n- Hard: recalled with effort\n- Good: recalled correctly\n- Easy: instant recall\n\nI will bring harder cards back sooner and easy ones later.\n\nDefault settings enabled:\n- 3 sessions: morning, afternoon, evening\n- 5 words per session\n\nUse /review to start training, /game for quiz mode, or /settings to adjust preferences.",
 			inserted,
 			onboarding.LabelForLanguage(state.LearningLang),
 			onboarding.LabelForLanguage(state.KnownLang),

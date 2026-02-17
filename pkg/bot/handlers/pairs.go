@@ -35,14 +35,14 @@ func HandleClear(ctx context.Context, b *bot.Bot, update *models.Update) {
 		logger.Error("failed to clear user data", "user_id", userID, "error", err)
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
-			Text:   "Failed to clear your word pair list. Please try again later.",
+			Text:   "Failed to clear your card list. Please try again later.",
 		})
 		return
 	}
 	training.DefaultManager.EndAllForUser(userID)
 	b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: update.Message.Chat.ID,
-		Text:   "Your word pair list has been cleared.",
+		Text:   "Your card list has been cleared.",
 	})
 }
 

@@ -65,7 +65,7 @@ func TestHandleExportSendsDocument(t *testing.T) {
 	HandleExport(context.Background(), b, update)
 
 	caption, _ := client.lastMultipartField(t, "caption")
-	if caption != "Your vocabulary export (2 pairs)." {
+	if caption != "Your vocabulary export (2 cards)." {
 		t.Fatalf("unexpected caption: %q", caption)
 	}
 	_, filename := client.lastMultipartField(t, "document")
