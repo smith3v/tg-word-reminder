@@ -96,6 +96,7 @@ func TestHandleGetPairResumesPersistedSession(t *testing.T) {
 func TestHandleClearRemovesWordPairs(t *testing.T) {
 	testutil.SetupTestDB(t)
 	logger.SetLogLevel(logger.ERROR)
+	training.ResetDefaultManager(time.Now)
 
 	userID := int64(606)
 	pairs := []db.WordPair{
@@ -104,6 +105,18 @@ func TestHandleClearRemovesWordPairs(t *testing.T) {
 	}
 	if err := db.DB.Create(&pairs).Error; err != nil {
 		t.Fatalf("failed to seed word pairs: %v", err)
+	}
+	session := training.DefaultManager.StartOrRestart(userID, userID, []db.WordPair{pairs[0]})
+	if session == nil {
+		t.Fatalf("expected in-memory training session")
+	}
+
+	var sessionsBefore int64
+	if err := db.DB.Model(&db.TrainingSession{}).Where("user_id = ?", userID).Count(&sessionsBefore).Error; err != nil {
+		t.Fatalf("failed to count training sessions before clear: %v", err)
+	}
+	if sessionsBefore == 0 {
+		t.Fatalf("expected persisted training session before clear")
 	}
 
 	client := newMockClient()
@@ -118,6 +131,16 @@ func TestHandleClearRemovesWordPairs(t *testing.T) {
 	}
 	if count != 0 {
 		t.Fatalf("expected word pairs to be deleted, found %d", count)
+	}
+	var sessionCount int64
+	if err := db.DB.Model(&db.TrainingSession{}).Where("user_id = ?", userID).Count(&sessionCount).Error; err != nil {
+		t.Fatalf("failed to count training sessions: %v", err)
+	}
+	if sessionCount != 0 {
+		t.Fatalf("expected training sessions to be deleted, found %d", sessionCount)
+	}
+	if gotSession := training.DefaultManager.GetSession(userID, userID); gotSession != nil {
+		t.Fatalf("expected in-memory training session to be cleared")
 	}
 
 	got := client.lastMessageText(t)

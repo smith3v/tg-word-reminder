@@ -55,12 +55,21 @@ func SelectSessionPairs(userID int64, size int, now time.Time) ([]db.WordPair, e
 	}
 
 	remaining := size - len(due)
+	selectedIDs := make([]uint, 0, len(due))
+	for _, pair := range due {
+		if pair.ID != 0 {
+			selectedIDs = append(selectedIDs, pair.ID)
+		}
+	}
+
 	var fresh []db.WordPair
-	if err := db.DB.
+	query := db.DB.
 		Where("user_id = ? AND srs_state = ?", userID, StateNew).
-		Order("srs_new_rank ASC, id ASC").
-		Limit(remaining).
-		Find(&fresh).Error; err != nil {
+		Order("srs_new_rank ASC, id ASC")
+	if len(selectedIDs) > 0 {
+		query = query.Where("id NOT IN ?", selectedIDs)
+	}
+	if err := query.Limit(remaining).Find(&fresh).Error; err != nil {
 		return nil, err
 	}
 

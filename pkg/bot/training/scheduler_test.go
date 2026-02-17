@@ -193,3 +193,53 @@ func TestSelectSessionPairsOrdersDueNewByRank(t *testing.T) {
 		t.Fatalf("expected due review then new by rank, got %+v", got)
 	}
 }
+
+func TestSelectSessionPairsAvoidsDuplicatesAcrossDueAndFresh(t *testing.T) {
+	testutil.SetupTestDB(t)
+
+	now := time.Date(2025, 1, 2, 10, 0, 0, 0, time.UTC)
+	dueReview := db.WordPair{
+		UserID:   702,
+		Word1:    "review",
+		Word2:    "pair",
+		SrsState: string(StateReview),
+		SrsDueAt: now.Add(-2 * time.Hour),
+	}
+	dueNew := db.WordPair{
+		UserID:     702,
+		Word1:      "new-due",
+		Word2:      "pair",
+		SrsState:   string(StateNew),
+		SrsDueAt:   now.Add(-time.Hour),
+		SrsNewRank: 10,
+	}
+	futureNew := db.WordPair{
+		UserID:     702,
+		Word1:      "new-future",
+		Word2:      "pair",
+		SrsState:   string(StateNew),
+		SrsDueAt:   now.Add(24 * time.Hour),
+		SrsNewRank: 20,
+	}
+
+	if err := db.DB.Create(&dueReview).Error; err != nil {
+		t.Fatalf("failed to create dueReview: %v", err)
+	}
+	if err := db.DB.Create(&dueNew).Error; err != nil {
+		t.Fatalf("failed to create dueNew: %v", err)
+	}
+	if err := db.DB.Create(&futureNew).Error; err != nil {
+		t.Fatalf("failed to create futureNew: %v", err)
+	}
+
+	got, err := SelectSessionPairs(702, 3, now)
+	if err != nil {
+		t.Fatalf("select failed: %v", err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("expected 3 pairs, got %+v", got)
+	}
+	if got[0].Word1 != "review" || got[1].Word1 != "new-due" || got[2].Word1 != "new-future" {
+		t.Fatalf("expected no duplicates across due+fresh selection, got %+v", got)
+	}
+}
