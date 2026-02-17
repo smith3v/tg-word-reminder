@@ -175,6 +175,95 @@ func TestComputeMissedCount(t *testing.T) {
 	}
 }
 
+func TestReminderDoesNotPauseBelowThreshold(t *testing.T) {
+	testutil.SetupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+	training.ResetDefaultManager(time.Now)
+	training.ResetOverdueManager(time.Now)
+
+	now := time.Date(2025, 1, 2, 13, 30, 0, 0, time.UTC)
+	lastSent := time.Date(2025, 1, 2, 12, 0, 0, 0, time.UTC)
+	user := db.UserSettings{
+		UserID:                 9001,
+		PairsToSend:            1,
+		ReminderAfternoon:      true,
+		TimezoneOffsetHours:    0,
+		MissedTrainingSessions: 7,
+		LastTrainingSentAt:     &lastSent,
+	}
+	if err := db.DB.Create(&user).Error; err != nil {
+		t.Fatalf("failed to seed user settings: %v", err)
+	}
+
+	client := newMockClient()
+	b := newTestTelegramBot(t, client)
+	handleUserReminder(context.Background(), b, user, now)
+
+	var updated db.UserSettings
+	if err := db.DB.Where("user_id = ?", user.UserID).First(&updated).Error; err != nil {
+		t.Fatalf("failed to load updated user settings: %v", err)
+	}
+	if updated.TrainingPaused {
+		t.Fatalf("expected reminders to remain active below threshold")
+	}
+	if updated.MissedTrainingSessions != 7 {
+		t.Fatalf("expected missed count to remain unchanged when no session is sent, got %d", updated.MissedTrainingSessions)
+	}
+
+	for _, req := range client.requests {
+		if strings.Contains(req.path, "sendMessage") && strings.Contains(string(req.body), "Paused reminders due to inactivity.") {
+			t.Fatalf("did not expect pause message below threshold")
+		}
+	}
+}
+
+func TestReminderPausesAtThreshold(t *testing.T) {
+	testutil.SetupTestDB(t)
+	logger.SetLogLevel(logger.ERROR)
+	training.ResetDefaultManager(time.Now)
+	training.ResetOverdueManager(time.Now)
+
+	now := time.Date(2025, 1, 2, 13, 30, 0, 0, time.UTC)
+	lastSent := time.Date(2025, 1, 2, 12, 0, 0, 0, time.UTC)
+	user := db.UserSettings{
+		UserID:                 9002,
+		PairsToSend:            1,
+		ReminderAfternoon:      true,
+		TimezoneOffsetHours:    0,
+		MissedTrainingSessions: 8,
+		LastTrainingSentAt:     &lastSent,
+	}
+	if err := db.DB.Create(&user).Error; err != nil {
+		t.Fatalf("failed to seed user settings: %v", err)
+	}
+
+	client := newMockClient()
+	b := newTestTelegramBot(t, client)
+	handleUserReminder(context.Background(), b, user, now)
+
+	var updated db.UserSettings
+	if err := db.DB.Where("user_id = ?", user.UserID).First(&updated).Error; err != nil {
+		t.Fatalf("failed to load updated user settings: %v", err)
+	}
+	if !updated.TrainingPaused {
+		t.Fatalf("expected reminders to pause at threshold")
+	}
+	if updated.MissedTrainingSessions != 9 {
+		t.Fatalf("expected missed count to be set to 9 at pause threshold, got %d", updated.MissedTrainingSessions)
+	}
+
+	foundPauseMessage := false
+	for _, req := range client.requests {
+		if strings.Contains(req.path, "sendMessage") && strings.Contains(string(req.body), "Paused reminders due to inactivity.") {
+			foundPauseMessage = true
+			break
+		}
+	}
+	if !foundPauseMessage {
+		t.Fatalf("expected pause notification message")
+	}
+}
+
 func TestSendTrainingSessionNoPairs(t *testing.T) {
 	testutil.SetupTestDB(t)
 	logger.SetLogLevel(logger.ERROR)
