@@ -7,7 +7,7 @@ import (
 )
 
 func RenderLearningLanguagePrompt() (string, *models.InlineKeyboardMarkup) {
-	text := "Welcome!\n\nChoose the language you are learning."
+	text := "Welcome!\n\nI will help you remember words with short review cards and repeating reminders at smart intervals.\n\nChoose the language you are learning."
 	return text, renderLanguageKeyboard(ActionSelectLearning, "", "")
 }
 
@@ -34,7 +34,7 @@ func RenderKnownLanguagePrompt(learningCode string) (string, *models.InlineKeybo
 
 func RenderConfirmationPrompt(learningCode, knownCode string, eligibleCount int) (string, *models.InlineKeyboardMarkup) {
 	text := fmt.Sprintf(
-		"Initialize vocabulary\n\nLearning language: %s\nKnown language: %s\nEligible pairs: %d",
+		"Initialize vocabulary\n\nLearning language: %s\nKnown language: %s\nEligible cards: %d",
 		LabelForLanguage(learningCode),
 		LabelForLanguage(knownCode),
 		eligibleCount,

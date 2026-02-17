@@ -58,7 +58,7 @@ func HandleExport(ctx context.Context, b *bot.Bot, update *models.Update) {
 	}
 
 	filename := importexport.ExportFilename(time.Now())
-	caption := fmt.Sprintf("Your vocabulary export (%d pairs).", len(pairs))
+	caption := fmt.Sprintf("Your vocabulary export (%d cards).", len(pairs))
 	_, err = b.SendDocument(ctx, &bot.SendDocumentParams{
 		ChatID: update.Message.Chat.ID,
 		Document: &models.InputFileUpload{

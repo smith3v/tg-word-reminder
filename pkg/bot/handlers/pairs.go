@@ -9,6 +9,7 @@ import (
 	"github.com/smith3v/tg-word-reminder/pkg/bot/training"
 	"github.com/smith3v/tg-word-reminder/pkg/db"
 	"github.com/smith3v/tg-word-reminder/pkg/logger"
+	"gorm.io/gorm"
 )
 
 func HandleClear(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -21,10 +22,27 @@ func HandleClear(ctx context.Context, b *bot.Bot, update *models.Update) {
 		return
 	}
 
-	db.DB.Where("user_id = ?", update.Message.From.ID).Delete(&db.WordPair{})
+	userID := update.Message.From.ID
+	if err := db.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ?", userID).Delete(&db.WordPair{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ?", userID).Delete(&db.TrainingSession{}).Error; err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		logger.Error("failed to clear user data", "user_id", userID, "error", err)
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "Failed to clear your card list. Please try again later.",
+		})
+		return
+	}
+	training.DefaultManager.EndAllForUser(userID)
 	b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: update.Message.Chat.ID,
-		Text:   "Your word pair list has been cleared.",
+		Text:   "Your card list has been cleared.",
 	})
 }
 

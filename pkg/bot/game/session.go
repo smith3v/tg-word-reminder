@@ -501,6 +501,35 @@ func normalizeAnswer(input string) string {
 	return strings.TrimSpace(trimmed)
 }
 
+func normalizeOptionalParentheses(input string) string {
+	return normalizeAnswer(stripParenthesized(input))
+}
+
+func stripParenthesized(input string) string {
+	if input == "" {
+		return ""
+	}
+
+	var b strings.Builder
+	depth := 0
+	for _, r := range input {
+		switch r {
+		case '(':
+			depth++
+			continue
+		case ')':
+			if depth > 0 {
+				depth--
+				continue
+			}
+		}
+		if depth == 0 {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
 func matchesExpected(userText, expected string, promptHasComma bool) bool {
 	if strings.Contains(expected, ",") {
 		if promptHasComma && strings.Contains(userText, ",") {
@@ -508,11 +537,11 @@ func matchesExpected(userText, expected string, promptHasComma bool) bool {
 		}
 		return matchesAnyCommaToken(userText, expected)
 	}
-	return normalizeAnswer(userText) == normalizeAnswer(expected)
+	return normalizeOptionalParentheses(userText) == normalizeOptionalParentheses(expected)
 }
 
 func matchesAnyCommaToken(userText, expected string) bool {
-	normalizedUser := normalizeAnswer(userText)
+	normalizedUser := normalizeOptionalParentheses(userText)
 	if normalizedUser == "" {
 		return false
 	}
@@ -562,7 +591,7 @@ func splitCommaTokens(input string) ([]string, bool) {
 	parts := strings.Split(input, ",")
 	tokens := make([]string, 0, len(parts))
 	for _, part := range parts {
-		token := normalizeAnswer(part)
+		token := normalizeOptionalParentheses(part)
 		if token == "" {
 			return nil, false
 		}

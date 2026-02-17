@@ -37,16 +37,17 @@ func DefaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 		}
 		_, err := b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
-			Text: "Commands:\n" +
-				"\\* /start: initialize your account\\.\n" +
-				"\\* /getpair: get a random word pair\\.\n" +
-				"\\* /game: start a quiz session\\.\n" +
+			Text: "This bot helps you remember words with repeated review cards and reminders at smart intervals\\.\n\n" +
+				"Commands:\n" +
+				"\\* /start: \\(re\\-\\)initialize your account\\.\n\n" +
 				"\\* /review: start a review session\\.\n" +
-				"\\* /settings: configure reminders and pair counts\\.\n" +
-				"\\* /feedback: send feedback to the admins\\.\n" +
-				"\\* /export: download your vocabulary\\.\n" +
-				"\\* /clear: remove all uploaded word pairs\\.\n\n" +
-				"If you attach a CSV file here\\, I\\'ll upload the word pairs to your account\\. Please refer to [the example](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/vocabularies/example.csv) for a file format\\, or to [Dutch\\-English vocabulary example](https://raw.githubusercontent.com/smith3v/tg-word-reminder/refs/heads/main/vocabularies/dutch-english.csv)\\.",
+				"\\* /game: start a quiz session\\.\n" +
+				"\\* /getpair: get a random card\\.\n\n" +
+				"\\* /settings: configure bot settings\\.\n" +
+				"\\* /feedback: send feedback to the bot admins\\.\n\n" +
+				"\\* /clear: remove all uploaded words\\.\n" +
+				"\\* /export: download your current vocabulary as CSV\\, edit it\\, then send it back here to import updates\\.\n" +
+				"\\* CSV upload: attach a CSV file here to import the cards\\.",
 			ParseMode: models.ParseModeMarkdown,
 		})
 		if err != nil {

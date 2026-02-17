@@ -532,6 +532,47 @@ func TestResolveTextAttemptAcceptsCommaOption(t *testing.T) {
 	}
 }
 
+func TestResolveTextAttemptAcceptsAnswerWithoutParentheticalClarification(t *testing.T) {
+	manager := NewGameManager(time.Now)
+	current := Card{PairID: 1, Direction: DirectionAToB, Shown: "gehen", Expected: "go (on foot)"}
+	session := &GameSession{
+		chatID:           9,
+		userID:           10,
+		currentCard:      &current,
+		currentMessageID: 44,
+		currentResolved:  false,
+		deck:             []Card{},
+	}
+	manager.sessions[getSessionKey(9, 10)] = session
+
+	result := manager.ResolveTextAttempt(9, 10, "go")
+	if !result.Handled || !result.Correct {
+		t.Fatalf("expected answer without parenthetical clarification to be accepted, got %+v", result)
+	}
+}
+
+func TestResolveTextAttemptAcceptsCommaOptionWithoutParentheticalClarification(t *testing.T) {
+	manager := NewGameManager(time.Now)
+	current := Card{
+		PairID: 1, Direction: DirectionAToB, Shown: "hola",
+		Expected: "adios (formal), hasta luego (casual)",
+	}
+	session := &GameSession{
+		chatID:           17,
+		userID:           18,
+		currentCard:      &current,
+		currentMessageID: 88,
+		currentResolved:  false,
+		deck:             []Card{},
+	}
+	manager.sessions[getSessionKey(17, 18)] = session
+
+	result := manager.ResolveTextAttempt(17, 18, "hasta luego")
+	if !result.Handled || !result.Correct {
+		t.Fatalf("expected comma option without clarification to be accepted, got %+v", result)
+	}
+}
+
 func TestResolveTextAttemptAcceptsFullCommaAnswerWhenPromptHasComma(t *testing.T) {
 	manager := NewGameManager(time.Now)
 	current := Card{PairID: 1, Direction: DirectionAToB, Shown: "new york, usa", Expected: "adios, hasta luego"}
@@ -548,6 +589,28 @@ func TestResolveTextAttemptAcceptsFullCommaAnswerWhenPromptHasComma(t *testing.T
 	result := manager.ResolveTextAttempt(11, 12, "adios, hasta luego")
 	if !result.Handled || !result.Correct {
 		t.Fatalf("expected full comma answer to be accepted, got %+v", result)
+	}
+}
+
+func TestResolveTextAttemptAcceptsFullCommaAnswerWhenPromptHasCommaAndClarifications(t *testing.T) {
+	manager := NewGameManager(time.Now)
+	current := Card{
+		PairID: 1, Direction: DirectionAToB, Shown: "new york, usa",
+		Expected: "adios (formal), hasta luego (casual)",
+	}
+	session := &GameSession{
+		chatID:           19,
+		userID:           20,
+		currentCard:      &current,
+		currentMessageID: 99,
+		currentResolved:  false,
+		deck:             []Card{},
+	}
+	manager.sessions[getSessionKey(19, 20)] = session
+
+	result := manager.ResolveTextAttempt(19, 20, "adios, hasta luego")
+	if !result.Handled || !result.Correct {
+		t.Fatalf("expected full comma answer without clarifications to be accepted, got %+v", result)
 	}
 }
 
@@ -631,6 +694,26 @@ func TestNormalizeAnswer(t *testing.T) {
 		got := normalizeAnswer(tc.input)
 		if got != tc.expected {
 			t.Fatalf("normalizeAnswer(%q) = %q, want %q", tc.input, got, tc.expected)
+		}
+	}
+}
+
+func TestNormalizeOptionalParentheses(t *testing.T) {
+	cases := []struct {
+		input    string
+		expected string
+	}{
+		{"go (on foot)", "go"},
+		{"go(on foot)", "go"},
+		{"(formal) hello", "hello"},
+		{"hello (formal)!", "hello"},
+		{"no parentheses", "no parentheses"},
+	}
+
+	for _, tc := range cases {
+		got := normalizeOptionalParentheses(tc.input)
+		if got != tc.expected {
+			t.Fatalf("normalizeOptionalParentheses(%q) = %q, want %q", tc.input, got, tc.expected)
 		}
 	}
 }

@@ -204,6 +204,24 @@ func (m *SessionManager) End(chatID, userID int64) {
 	}
 }
 
+// EndAllForUser drops all in-memory sessions for a user.
+func (m *SessionManager) EndAllForUser(userID int64) {
+	if userID == 0 {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for key, session := range m.sessions {
+		if session == nil {
+			delete(m.sessions, key)
+			continue
+		}
+		if session.userID == userID {
+			delete(m.sessions, key)
+		}
+	}
+}
+
 func (m *SessionManager) Snapshot(chatID, userID int64) (SessionSnapshot, bool) {
 	key := getSessionKey(chatID, userID)
 	m.mu.Lock()

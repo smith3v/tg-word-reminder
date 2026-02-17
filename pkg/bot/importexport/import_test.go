@@ -179,7 +179,7 @@ func TestHandleDocumentImportImportsCSV(t *testing.T) {
 	HandleDocumentImport(context.Background(), b, update)
 
 	got := client.lastMessageText(t)
-	if !strings.Contains(got, "Imported 1 new pairs") {
+	if !strings.Contains(got, "Imported 1 new cards") {
 		t.Fatalf("expected import confirmation, got %q", got)
 	}
 }

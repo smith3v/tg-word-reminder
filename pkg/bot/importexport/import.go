@@ -83,7 +83,7 @@ func HandleDocumentImport(ctx context.Context, b *bot.Bot, update *models.Update
 	if len(pairs) == 0 {
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
-			Text:   "No valid word pairs found to import.",
+			Text:   "No valid cards found to import.",
 		})
 		return
 	}
@@ -93,13 +93,13 @@ func HandleDocumentImport(ctx context.Context, b *bot.Bot, update *models.Update
 		logger.Error("failed to import word pairs", "user_id", update.Message.From.ID, "error", err)
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
-			Text:   "Failed to import your word pairs. Please try again later.",
+			Text:   "Failed to import your cards. Please try again later.",
 		})
 		return
 	}
 
 	b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: update.Message.Chat.ID,
-		Text:   fmt.Sprintf("Imported %d new pairs, updated %d pairs, skipped %d rows.", inserted, updated, skipped),
+		Text:   fmt.Sprintf("Imported %d new cards, updated %d cards, skipped %d rows.", inserted, updated, skipped),
 	})
 }

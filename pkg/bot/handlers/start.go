@@ -72,7 +72,7 @@ func HandleStart(ctx context.Context, b *bot.Bot, update *models.Update) {
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
 			Text: "Built-in onboarding vocabulary is unavailable right now.\n" +
-				"You can still upload your own CSV file with word pairs to get started.",
+				"You can still upload your own CSV file with cards to get started.",
 		})
 		return
 	}

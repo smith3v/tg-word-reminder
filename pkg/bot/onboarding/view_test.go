@@ -8,8 +8,8 @@ import (
 func TestRenderConfirmationPromptWithNoEligiblePairs(t *testing.T) {
 	text, keyboard := RenderConfirmationPrompt("en", "ru", 0)
 
-	if !strings.Contains(text, "Eligible pairs: 0") {
-		t.Fatalf("expected eligible pairs count, got %q", text)
+	if !strings.Contains(text, "Eligible cards: 0") {
+		t.Fatalf("expected eligible cards count, got %q", text)
 	}
 	if !strings.Contains(text, "Sorry, we don't have a training set for the chosen languages") {
 		t.Fatalf("expected no-training-set guidance, got %q", text)
@@ -30,7 +30,7 @@ func TestRenderConfirmationPromptWithEligiblePairs(t *testing.T) {
 	text, keyboard := RenderConfirmationPrompt("en", "ru", 3)
 
 	if strings.Contains(text, "Sorry, we don't have a training set") {
-		t.Fatalf("did not expect no-training-set guidance when pairs are available")
+		t.Fatalf("did not expect no-training-set guidance when cards are available")
 	}
 	if keyboard == nil {
 		t.Fatalf("expected keyboard")

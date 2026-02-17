@@ -18,6 +18,7 @@ const (
 	slotAfternoonHour  = 13
 	slotEveningHour    = 20
 	activeSessionGrace = 15 * time.Minute
+	pauseAfterMisses   = 9
 )
 
 func StartPeriodicMessages(ctx context.Context, b *bot.Bot) {
@@ -65,7 +66,7 @@ func handleUserReminder(ctx context.Context, b *bot.Bot, user db.UserSettings, n
 	}
 
 	missed := computeMissedCount(user)
-	if missed >= 3 {
+	if missed >= pauseAfterMisses {
 		if !user.TrainingPaused {
 			user.TrainingPaused = true
 			user.MissedTrainingSessions = missed
