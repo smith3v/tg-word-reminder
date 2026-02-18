@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -199,7 +200,7 @@ func samplePairs(pairs []db.WordPair, limit int) []db.WordPair {
 	}
 	perm := rand.Perm(len(pairs))
 	selected := make([]db.WordPair, 0, limit)
-	for i := 0; i < limit; i++ {
+	for i := range limit {
 		selected = append(selected, pairs[perm[i]])
 	}
 	return selected
@@ -549,12 +550,7 @@ func matchesAnyCommaToken(userText, expected string) bool {
 	if !ok {
 		return false
 	}
-	for _, token := range tokens {
-		if normalizedUser == token {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(tokens, normalizedUser)
 }
 
 func matchesCommaList(userText, expected string) bool {
@@ -624,7 +620,7 @@ func persistSessionCounts(session *GameSession) {
 	}
 	if err := db.DB.Model(&db.GameSessionStatistics{}).
 		Where("id = ? AND ended_at IS NULL", session.sessionID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"attempt_count": session.attemptCount,
 			"correct_count": session.correctCount,
 		}).Error; err != nil {
@@ -640,7 +636,7 @@ func persistSessionEnd(session *GameSession, endedAt time.Time, reason string) {
 	durationSeconds := durationFrom(session.startedAt, endedAt)
 	if err := db.DB.Model(&db.GameSessionStatistics{}).
 		Where("id = ? AND ended_at IS NULL", session.sessionID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"ended_at":         endedAt,
 			"ended_reason":     reason,
 			"duration_seconds": durationSeconds,

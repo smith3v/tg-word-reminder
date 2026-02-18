@@ -244,14 +244,14 @@ func TestSelectRandomPairsReturnsDistinctPairs(t *testing.T) {
 	userID := int64(800)
 	otherID := int64(801)
 	var pairs []db.WordPair
-	for i := 0; i < 8; i++ {
+	for i := range 8 {
 		pairs = append(pairs, db.WordPair{
 			UserID: userID,
 			Word1:  fmt.Sprintf("word-%d", i),
 			Word2:  fmt.Sprintf("term-%d", i),
 		})
 	}
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		pairs = append(pairs, db.WordPair{
 			UserID: otherID,
 			Word1:  fmt.Sprintf("other-%d", i),
