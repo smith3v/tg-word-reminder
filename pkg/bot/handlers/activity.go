@@ -42,7 +42,7 @@ func (t *ActivityTracker) Flush(ctx context.Context) error {
 		return nil
 	}
 
-	updates := map[string]interface{}{
+	updates := map[string]any{
 		"training_paused":          false,
 		"missed_training_sessions": 0,
 	}

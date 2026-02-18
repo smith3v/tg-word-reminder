@@ -12,7 +12,7 @@ func TestPrepareWordPairMessageProducesBothLayouts(t *testing.T) {
 	}
 
 	messageRand = rand.New(rand.NewSource(1))
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		msg := PrepareWordPairMessage("Hola", "Adios")
 		if _, ok := expected[msg]; ok {
 			expected[msg] = true

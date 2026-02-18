@@ -91,11 +91,11 @@ func TestHandleGameStartSendsPromptWithCallback(t *testing.T) {
 		t.Fatalf("expected callback_data with g:r: prefix")
 	}
 	token := body[idx:]
-	end := strings.Index(token, "\"")
-	if end == -1 {
+	before, _, ok := strings.Cut(token, "\"")
+	if !ok {
 		t.Fatalf("expected closing quote for callback_data")
 	}
-	callback := token[:end]
+	callback := before
 	if len(callback) > ui.MaxCallbackDataLen {
 		t.Fatalf("callback_data too long: %d", len(callback))
 	}
@@ -112,7 +112,7 @@ func TestHandleGameStartResumesPersistedSession(t *testing.T) {
 		t.Fatalf("failed to seed word pair: %v", err)
 	}
 
-	deck := []map[string]interface{}{
+	deck := []map[string]any{
 		{
 			"pair_id":   pair.ID,
 			"direction": game.DirectionAToB,
@@ -197,7 +197,7 @@ func TestHandleGameTextAttemptResumesPersistedSession(t *testing.T) {
 		t.Fatalf("failed to seed word pair: %v", err)
 	}
 
-	deck := []map[string]interface{}{
+	deck := []map[string]any{
 		{
 			"pair_id":   pair.ID,
 			"direction": game.DirectionAToB,
@@ -322,7 +322,7 @@ func TestHandleGameCallbackResumesPersistedSession(t *testing.T) {
 		t.Fatalf("failed to seed word pair: %v", err)
 	}
 
-	deck := []map[string]interface{}{
+	deck := []map[string]any{
 		{
 			"pair_id":   pair.ID,
 			"direction": game.DirectionAToB,

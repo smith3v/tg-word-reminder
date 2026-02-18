@@ -337,7 +337,7 @@ func markTrainingEngaged(userID int64, now time.Time) {
 	if userID == 0 {
 		return
 	}
-	updates := map[string]interface{}{
+	updates := map[string]any{
 		"last_training_engaged_at": now,
 		"missed_training_sessions": 0,
 		"training_paused":          false,

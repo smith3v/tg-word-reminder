@@ -43,21 +43,21 @@ func (l *gormSlogLogger) LogMode(level gormlogger.LogLevel) gormlogger.Interface
 	return &clone
 }
 
-func (l *gormSlogLogger) Info(ctx context.Context, msg string, data ...interface{}) {
+func (l *gormSlogLogger) Info(ctx context.Context, msg string, data ...any) {
 	if !l.enabled(gormlogger.Info) {
 		return
 	}
 	logger.Logger.Log(ctx, slog.LevelInfo, fmt.Sprintf(msg, data...))
 }
 
-func (l *gormSlogLogger) Warn(ctx context.Context, msg string, data ...interface{}) {
+func (l *gormSlogLogger) Warn(ctx context.Context, msg string, data ...any) {
 	if !l.enabled(gormlogger.Warn) {
 		return
 	}
 	logger.Logger.Log(ctx, slog.LevelWarn, fmt.Sprintf(msg, data...))
 }
 
-func (l *gormSlogLogger) Error(ctx context.Context, msg string, data ...interface{}) {
+func (l *gormSlogLogger) Error(ctx context.Context, msg string, data ...any) {
 	if !l.enabled(gormlogger.Error) {
 		return
 	}
