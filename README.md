@@ -1,225 +1,122 @@
-# Telegram Word Pair Reminder Bot
+# Easy Recall Bot
 
-This is a Telegram bot built using Go that helps users learn vocabulary with onboarding, quizzes, and spaced reminders.
+Easy Recall Bot is a Telegram bot for vocabulary practice with onboarding, spaced review, quiz mode, and reminders.
 
-## Features
+## Highlights
 
-- Onboarding wizard that initializes personal vocabulary from a multilingual base dataset.
-- Safe re-initialization flow on `/start` for existing users with confirmation and cancel options.
-- Upload word pairs as a CSV file (`word1,word2` or tab/semicolon separated).
-- Clear uploaded word pairs.
-- Set the number of pairs to send in reminders.
-- Set the frequency of reminders per day.
-- Periodic reminders sent to users with random word pairs.
+- Onboarding wizard on `/start` to initialize a personal deck from built-in multilingual vocabulary.
+- Safe re-initialization for existing users with explicit `RESET MY DATA` confirmation.
+- Spaced-repetition review flow (`/review`) plus quiz mode (`/game`).
+- CSV import/export for personal vocabulary updates.
+- Configurable reminder schedule and cards per session.
 
-## Project Structure
+## Onboarding Experience
 
-- `cmd/tg-word-reminder/main.go`: application entrypoint.
-- `pkg/bot/handlers`: Telegram command/update handlers.
-- `pkg/bot/onboarding`: onboarding flow, init vocabulary refresh, and provisioning logic.
-- `pkg/bot/game`: quiz session state and matching logic.
-- `pkg/bot/reminders`: reminder scheduling and delivery.
-- `pkg/bot/importexport`: CSV parsing and export helpers.
-- `pkg/db`: GORM models and database initialization.
-- `pkg/config`: JSON config loader.
-- `pkg/logger`: slog wrapper.
-- `pkg/ui`: inline keyboard rendering and callback data parsing.
-- `pkg/internal/testutil`: shared test helpers.
+For new users, `/start` opens a language selection wizard:
+1. Choose the language you are learning.
+2. Choose the language you already know.
+3. Confirm import and start training.
 
-## Prerequisites
+Defaults after onboarding:
+- 3 reminder sessions (morning, afternoon, evening)
+- 5 cards per session
 
-- Go 1.25 or newer
-- PostgreSQL database
-- A Telegram bot token (create one using [BotFather](https://core.telegram.org/bots#botfather))
+If built-in onboarding vocabulary is unavailable, users can still upload their own CSV file to begin.
 
-## Installation
+## Commands
 
-1. **Clone the repository:**
+- `/start` - start onboarding or re-initialize account
+- `/review` - start/resume spaced-repetition training
+- `/game` - start quiz mode
+- `/getpair` - get one random card
+- `/settings` - configure reminders and training preferences
+- `/export` - download your vocabulary as CSV
+- `/clear` - remove uploaded vocabulary
+- `/feedback` - send feedback to admins (private chat)
+
+## Quick Start
+
+### Prerequisites
+
+- Go 1.26+
+- PostgreSQL
+- Telegram bot token from [BotFather](https://core.telegram.org/bots#botfather)
+
+### Run with Docker Compose
+
+1. Create config:
    ```bash
-   git clone <repository-url>
-   cd <repository-directory>
+   cp config.example.json config.json
    ```
-
-2. **Create a production `.env` for Docker Compose:**
+2. Edit `config.json`:
+   - set `telegram.token`
+   - set database settings to match your compose environment
+3. Create `.env` for PostgreSQL:
    ```dotenv
-   # .env
    POSTGRES_USER=your_db_user
    POSTGRES_PASSWORD=your_db_password
    POSTGRES_DB=your_db_name
    ```
-   Keep these values in sync with the database settings in `config.json`.
-
-3. **Create a configuration file:**
-   Copy `config.example.json` to `config.json` and set your Telegram bot token and database credentials to match `.env`.
-   ```bash
-   cp config.example.json config.json
-   ```
-   For local development values and `.env.development`, see [Local Development (Docker Compose)](#local-development-docker-compose).
-
-4. **Run the bot with Docker Compose:**
+4. Start services:
    ```bash
    docker compose up --build
    ```
-   Run detached if you prefer:
-   ```bash
-   docker compose up -d --build
-   ```
 
-## Local Development (Docker Compose)
-
-For local development, use Docker Compose to run the bot and PostgreSQL.
-
-1. **Create a development `.env.development` file:**
-   ```dotenv
-   # .env.development
-   POSTGRES_USER=tgwr
-   POSTGRES_PASSWORD=tgwr_local_password
-   POSTGRES_DB=tgwrdb
-   ```
-   Keep these values in sync with the database settings in `config.json`.
-
-2. **Update database settings in `config.json`:**
-   Set database values to match `.env.development`:
-   - host: `db`
-   - user: `tgwr`
-   - password: `tgwr_local_password`
-   - dbname: `tgwrdb`
-   - port: `5432`
-   - sslmode: `disable`
-
-3. **Start the stack with the development env file:**
-   ```bash
-   docker compose --env-file .env.development up --build
-   ```
-   Run detached if you prefer:
-   ```bash
-   docker compose --env-file .env.development up -d --build
-   ```
-   Use `--env-file .env.development` with other Compose commands too.
-
-4. **Useful Compose commands:**
-   Tail logs for the bot:
-   ```bash
-   docker compose --env-file .env.development logs -f tg-word-reminder
-   ```
-
-5. **Connect to the local database (in-container):**
-   ```bash
-   docker compose --env-file .env.development exec db psql -U tgwr -d tgwrdb
-   ```
-
-6. **Connect to the local database (host):**
-   ```bash
-   psql -h 127.0.0.1 -U tgwr -d tgwrdb
-   ```
-
-## Database Backups (Docker Compose)
-
-The Compose stack includes a `db-backup` service that runs `pg_dump` every hour and keeps four days of plain SQL backups (compressed with gzip) in `./backups`.
-
-Defaults (override via `.env` or `.env.development`):
-```dotenv
-BACKUP_INTERVAL_SECONDS=3600
-BACKUP_RETENTION_DAYS=4
-```
-
-Restore a backup:
+Useful logs command:
 ```bash
-gunzip -c backups/<backup-file>.sql.gz | psql -h 127.0.0.1 -U tgwr -d tgwrdb
+docker compose logs -f tg-word-reminder
 ```
 
-Drop everything and restore:
+### Run without Docker
+
 ```bash
-docker compose --env-file .env.development exec -T db psql -U tgwr -d tgwrdb -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
-gunzip -c backups/<backup-file>.sql.gz | docker compose --env-file .env.development exec -T db psql -U tgwr -d tgwrdb
+go run ./cmd/tg-word-reminder
 ```
 
-## Testing
+## CSV Import Format
 
-Run unit tests locally:
-```bash
-go test ./...
-```
+Send a CSV document to the bot chat.
 
-## Usage
+- First two columns are used as `word1,word2`
+- Supported separators: comma, semicolon, tab
+- Example file: `vocabularies/example.csv`
 
-On first `/start`, the bot launches onboarding and asks for:
-1. the language you are learning
-2. the language you already know
+## Configuration Notes
 
-It then copies eligible pairs from the init vocabulary table to your personal vocabulary and enables default reminders (morning, afternoon, evening) with 5 cards per session.
+- `onboarding.init_vocabulary_path` controls startup refresh of built-in multilingual vocabulary.
+- `feedback.admin_ids` controls who receives `/feedback` messages.
+- Logging options (`logging.level`, `logging.gorm_level`, `logging.file`) are optional.
 
-For existing users, `/start` asks for confirmation before re-initialization and allows canceling the flow.
+Reference config: `config.example.json`.
 
-You can also send your own CSV file to upload/update personal pairs. The first two columns are used as source/target words (comma, tab, or semicolon separated). Refer to `vocabularies/example.csv` for format.
+## Development
 
-- **Commands:**
-  - `/start:` initialize your account.
-  - `/getpair`: get a random word pair.
-  - `/game`: start a quiz session.
-  - `/review`: start a review session.
-  - `/settings`: configure reminders and pair counts.
-  - `/export`: download your vocabulary.
-  - `/clear`: remove all uploaded word pairs.
-  - `/feedback`: send feedback to the admins (private chat only).
+- Run tests: `go test ./...`
+- Format and vet: `go fmt ./... && go vet ./...`
+- Build binary: `mkdir -p bin && go build -o bin/tg-word-reminder ./cmd/tg-word-reminder`
+- Build container: `docker build -t tg-word-reminder .`
 
-## Database Setup
+## Project Layout
 
-The bot uses a PostgreSQL database. Ensure that the database is set up and accessible based on the configuration provided in `config.json`. The bot will automatically create the necessary tables for storing word pairs and user settings.
+- `cmd/tg-word-reminder` - application entrypoint
+- `pkg/bot/handlers` - Telegram handlers
+- `pkg/bot/onboarding` - onboarding state machine and provisioning
+- `pkg/bot/training` - spaced-repetition training flow
+- `pkg/bot/game` - quiz session logic
+- `pkg/bot/reminders` - periodic reminders
+- `pkg/bot/importexport` - CSV import/export
+- `pkg/db` - GORM models, repository, migrations
+- `pkg/config` - JSON config loading
+- `pkg/logger` - slog wrapper
 
-## Logging
+## Additional Docs
 
-The bot uses the standard library's `slog` package for logging. Logs are printed to stdout by default.
-
-Optional `config.json` logging settings:
-```json
-"logging": {
-  "level": "info",
-  "gorm_level": "warn",
-  "file": "/app/logs/tg-word-reminder.log"
-}
-```
-- `level`: `debug`, `info`, or `error` (defaults to `info`).
-- `gorm_level`: `silent`, `error`, `warn`, or `info` (defaults to `warn`).
-- `file`: when set, logs are written to both stdout and the file path.
-
-`compose.yml` mounts `./logs` to `/app/logs` so file logs persist across container restarts.
-
-## Feedback
-
-Configure feedback delivery in `config.json` with admin IDs:
-```json
-"feedback": {
-  "enabled": true,
-  "admin_ids": [123456789],
-  "timeout_minutes": 5
-}
-```
-Admin IDs must be numeric Telegram user IDs. Use @Get_myidrobot (or similar) to find your numeric ID.
-
-## Onboarding
-
-Configure init vocabulary refresh in `config.json`:
-```json
-"onboarding": {
-  "init_vocabulary_path": "/app/vocabularies/multilang.csv"
-}
-```
-
-- If `init_vocabulary_path` is set, the bot attempts to refresh `init_vocabularies` on startup.
-- Refresh uses strict required columns: `en`, `ru`, `nl`, `es`, `de`, `fr`.
-- If refresh fails (missing/invalid file, invalid schema, empty data), the error is logged and bot startup continues.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a pull request or open an issue for any enhancements or bug fixes.
+- `docs/2026-02-12-onboarding-wizard-design.md`
+- `docs/2026-02-12-onboarding-wizard-implementation.md`
+- `docs/2026-01-15-spaced-repetition.md`
+- `docs/2025-12-24-game.md`
+- `docs/2025-12-28-import-export.md`
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- [Go](https://golang.org/)
-- [Telegram Bot API](https://core.telegram.org/bots/api)
-- [GORM](https://gorm.io/)
+MIT. See `LICENSE`.
